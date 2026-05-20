@@ -1,0 +1,17 @@
+region_path={
+    'outlet_mgmt_menu_path':'/html/body/div/div/aside/section[2]/div[1]/button/div',
+    'region_menu_path':'/html/body/div/div/aside/section[2]/div[1]/div/div[3]/a/span',
+    'search_box_name':'code',
+    'name_search_result_path':'/html/body/div/div/div[1]/div/div/div/div/form/table/tbody/tr/td[1]',
+    'no_region_result_path':'/html/body/div/div/div[1]/div/div/div/div/form/section[2]/div/h1',
+    'add_new_region_btn_path':'/html/body/div/div/div[1]/div/div[1]/div/div/form/section/div[1]/button',
+    'edit_btn_path':'/html/body/div/div/div[1]/div/div/div/div/form/table/tbody/tr[1]/td[3]/div/span',
+    'region_name_txt_box':'name',
+    'region_name_req_err_msg_path':'/html/body/div/div/div[3]/div[2]/form/div[1]/div/div/div/p',
+    'save_btn_path':'/html/body/div/div/div[3]/div[2]/form/div[2]/button[2]',
+    'cancel_btn_path':'/html/body/div/div/div[3]/div[2]/form/div[2]/button[1]',
+    'x_sign_btn_path':'/html/body/div/div/div[3]/div[2]/div/button',
+    'actual_created_item_path':'/html/body/div/div/div[1]/div/div[1]/div/div/form/table/tbody/tr[1]/td[1]',
+    'add_new_region_label_path':'/html/body/div/div/div[3]/div[2]/div/div/h2',
+    'edit_region_label_path':'/html/body/div/div/div[3]/div[2]/div/div/h2',
+}
