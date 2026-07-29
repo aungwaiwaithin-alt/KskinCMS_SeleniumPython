@@ -1,0 +1,24 @@
+# Secrets / local env
+cms_config.py
+.env
+.env.*
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+**/venv/
+**/.venv/
+.pytest_cache/
+*.egg-info/
+
+# Reports / OS / IDE
+*.html
+!**/README.md
+.DS_Store
+.cursor/
+.idea/
+.vscode/
+reports/
+**/screenshots/
