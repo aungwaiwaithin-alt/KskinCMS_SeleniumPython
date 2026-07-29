@@ -1,14 +1,11 @@
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-# if didn't add above three things, will show ' No module named 'KskinCMS'. error
-# >>That’s because KskinCMS is a subfolder, not a top-level module/package in your current Python path (sys.path).
-# When running FranchiseAccMain.py, Python is not treating the project root (i.e. SeleniumPython/)
-# as part of the module search path.
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 import pytest
 from KskinCMS.IssueFreeVoucher_Module.IFV import *
+
 
 @pytest.fixture(scope="module")
 def setup():
@@ -32,6 +29,10 @@ def test_rows_per_page_actions():
 
 
 @pytest.mark.order(4)
-@pytest.mark.skip(reason="Brittle create flow — listing regression only (open/search/filter/rows_per_page)")
 def test_add_new_ifv():
     add_new_ifv()
+
+
+@pytest.mark.order(5)
+def test_check_created_ifv_value():
+    check_created_ifv_value()

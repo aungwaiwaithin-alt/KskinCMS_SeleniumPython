@@ -40,6 +40,11 @@ def click_by_name(name):
 def send_keys_by_name(name,value):
     driver.find_element(By.NAME, name).send_keys(value)
 
+def wait_name(name, timeout=20):
+    return WebDriverWait(driver, timeout).until(
+        EC.presence_of_element_located((By.NAME, name))
+    )
+
 def click_by_id(id):
     driver.find_element(By.ID, id).click()
 

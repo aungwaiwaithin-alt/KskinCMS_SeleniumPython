@@ -66,21 +66,27 @@ def franchise_searching():
         # Prefer longest token (avoid tiny crumbs like "sd")
         first_entity = max(parts, key=len) if parts else ""
     if not first_entity or len(first_entity) < 3:
-        print("Test 5 : Entity search skipped — no usable entity text on first row")
-        return
+        raise AssertionError(
+            "Entity search FAILED: no usable entity text on first row "
+            "(report to dev / Asana)"
+        )
 
     js_fill(driver, driver.find_element(By.NAME, franchise_path['search_box_name']), first_entity)
     time.sleep(2)
     rows = driver.find_elements(By.CSS_SELECTOR, "table tbody tr")
     if not rows:
-        print(f"Something went wrong. Entity Name searching with matched value is failed! ({first_entity})")
-        return
+        raise AssertionError(
+            f"Entity search FAILED: no rows for '{first_entity}' (report to dev / Asana)"
+        )
     actual = rows[0].text
     print(actual)
     if first_entity in actual:
         print("Test 5 : Entity Name searching with matched value is successful!")
     else:
-        print("Something went wrong. Entity Name searching with matched value is failed!")
+        raise AssertionError(
+            f"Entity search FAILED: '{first_entity}' not in row '{actual[:120]}' "
+            "(report to dev / Asana)"
+        )
 
     driver.find_element(By.NAME, franchise_path['search_box_name']).clear()
     time.sleep(2)

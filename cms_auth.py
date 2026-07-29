@@ -25,7 +25,7 @@ _SHARED_DRIVER = None
 def chrome_options_desktop():
     opts = Options()
     opts.add_argument(f"--window-size={VIEWPORT_WIDTH},{VIEWPORT_HEIGHT}")
-    opts.add_argument("--start-maximized")
+    # Do not use --start-maximized on macOS — it often yields ~1440×750 logical
     return opts
 
 
@@ -62,14 +62,21 @@ def quit_driver():
 
 
 def ensure_desktop(driver):
-    try:
-        driver.set_window_size(VIEWPORT_WIDTH, VIEWPORT_HEIGHT)
-    except Exception:
-        pass
-    try:
-        driver.maximize_window()
-    except Exception:
-        pass
+    """Force desktop viewport. Avoid maximize_window on macOS — it shrinks to screen."""
+    for _ in range(2):
+        try:
+            driver.set_window_rect(x=0, y=0, width=VIEWPORT_WIDTH, height=VIEWPORT_HEIGHT)
+        except Exception:
+            try:
+                driver.set_window_size(VIEWPORT_WIDTH, VIEWPORT_HEIGHT)
+            except Exception:
+                pass
+        try:
+            size = driver.get_window_size()
+            if size.get("width", 0) >= 1600 and size.get("height", 0) >= 900:
+                return
+        except Exception:
+            return
 
 
 def _is_authenticated(url: str) -> bool:
@@ -199,28 +206,76 @@ def toggle_row_status(driver, item_name, make_inactive=True):
     """
     from selenium.webdriver.common.action_chains import ActionChains
 
-    search_listing(driver, item_name)
+    search_listing(driver, item_name.split("\n")[0].strip())
     time.sleep(1)
+    safe_name = item_name.split("\n")[0].strip().replace("'", "")
     row = WebDriverWait(driver, 15).until(
         EC.presence_of_element_located(
-            (By.XPATH, f"//table//tbody/tr[contains(., '{item_name}')]")
+            (By.XPATH, f"//table//tbody/tr[contains(., '{safe_name}')]")
         )
     )
     btn = row.find_element(By.CSS_SELECTOR, ".actions-column button, td:last-child button")
     driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn)
-    # Radix menus often ignore JS click — use real mouse click
-    try:
-        ActionChains(driver).move_to_element(btn).pause(0.2).click().perform()
-    except Exception:
-        btn.click()
-    time.sleep(1)
-    # retry if menu did not open
-    if (btn.get_attribute("aria-expanded") or "") != "true":
+    time.sleep(0.2)
+
+    def _menu_open():
+        return bool(
+            driver.find_elements(
+                By.XPATH,
+                "//*[@role='menuitem' and (contains(.,'Set as inactive') or contains(.,'Set as active')"
+                " or contains(.,'Inactive') or contains(.,'Active') or contains(.,'Duplicate')"
+                " or contains(.,'Edit') or contains(.,'Delete'))]",
+            )
+        )
+
+    def _click_menu_btn():
+        # Radix DropdownMenu needs a full pointer event sequence; plain click often no-ops
+        driver.execute_script(
+            """
+            const el = arguments[0];
+            const r = el.getBoundingClientRect();
+            const x = r.left + r.width / 2, y = r.top + r.height / 2;
+            el.focus();
+            for (const type of [
+              'pointerover','pointerenter','pointerdown','mousedown',
+              'pointerup','mouseup','click'
+            ]) {
+              const C = type.startsWith('pointer') ? PointerEvent : MouseEvent;
+              el.dispatchEvent(new C(type, {
+                bubbles: true, cancelable: true, view: window,
+                clientX: x, clientY: y, pointerId: 1, pointerType: 'mouse',
+                buttons: type.endsWith('down') ? 1 : 0
+              }));
+            }
+            """,
+            btn,
+        )
+
+    _click_menu_btn()
+    time.sleep(0.8)
+    # Only retry if menu did NOT open — a second click often closes Radix menus
+    if not _menu_open():
         try:
-            btn.click()
+            ActionChains(driver).move_to_element(btn).pause(0.15).click().perform()
         except Exception:
-            driver.execute_script("arguments[0].click();", btn)
-        time.sleep(1)
+            pass
+        time.sleep(0.8)
+    if not _menu_open():
+        rect = driver.execute_script(
+            "const r=arguments[0].getBoundingClientRect();"
+            "return {x:r.left+r.width/2,y:r.top+r.height/2};",
+            btn,
+        )
+        for typ, button, buttons in (
+            ("mouseMoved", "none", 0),
+            ("mousePressed", "left", 1),
+            ("mouseReleased", "left", 0),
+        ):
+            payload = {"type": typ, "x": rect["x"], "y": rect["y"], "button": button, "buttons": buttons}
+            if typ != "mouseMoved":
+                payload["clickCount"] = 1
+            driver.execute_cdp_cmd("Input.dispatchMouseEvent", payload)
+        time.sleep(0.8)
 
     if make_inactive:
         menu = WebDriverWait(driver, 10).until(
@@ -266,12 +321,12 @@ def toggle_row_status(driver, item_name, make_inactive=True):
         expect = "ACTIVE"
 
     time.sleep(3)
-    search_listing(driver, item_name)
+    search_listing(driver, safe_name)
     status = driver.find_element(
-        By.XPATH, f"//table//tbody/tr[contains(., '{item_name}')]"
+        By.XPATH, f"//table//tbody/tr[contains(., '{safe_name}')]"
     ).text.upper()
     ok = expect in status
-    print(f"Status for '{item_name}' → want {expect}; row text has it? {ok}")
+    print(f"Status for '{safe_name}' → want {expect}; row text has it? {ok}")
     return ok
 
 
@@ -296,9 +351,21 @@ def duplicate_row_as_qa(driver, qa_name, name_field="name", name_col_index=0):
     if target is None:
         raise RuntimeError("No listing rows to duplicate for QA status item")
 
+    from selenium.webdriver.common.action_chains import ActionChains
+
     btn = target.find_element(By.CSS_SELECTOR, ".actions-column button, td:last-child button")
-    driver.execute_script("arguments[0].click();", btn)
+    driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn)
+    try:
+        ActionChains(driver).move_to_element(btn).pause(0.2).click().perform()
+    except Exception:
+        driver.execute_script("arguments[0].click();", btn)
     time.sleep(1)
+    if (btn.get_attribute("aria-expanded") or "") != "true":
+        try:
+            btn.click()
+        except Exception:
+            driver.execute_script("arguments[0].click();", btn)
+        time.sleep(1)
     dups = driver.find_elements(
         By.XPATH, "//*[@role='menuitem' and (contains(.,'Duplicate') or contains(.,'duplicate'))]"
     )
