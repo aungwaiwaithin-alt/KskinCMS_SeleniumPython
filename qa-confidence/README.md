@@ -86,14 +86,15 @@ Hard rule: confidence ≠ “a test exists”. Never claim `trusted` with open c
 Use **`/QA_ConfidenceWorkflow`**.  
 Read `prompts/agent_guardrails.md` before changing mappings or answering skip-manual questions.
 
-Cursor loads skills from `~/.cursor/skills/` **or** this project's `.cursor/skills/`.
-
-Preferred (no Terminal install): open this CMS repo in Cursor — skill is at `.cursor/skills/QA_ConfidenceWorkflow/SKILL.md`.
-
-Fallback (user-global):
+For **CMS + mobile + other AquaProjects**, install once on your Mac:
 
 ```bash
-bash qa-confidence/skill/install.sh
+bash qa-confidence/skill/install-aquaprojects.sh
 ```
 
-Then start a **new** chat (or reload the window) so `/QA_ConfidenceWorkflow` appears.
+That writes:
+- `~/AquaProjects/QA_ConfidenceWorkflow/SKILL.md` (shared source)
+- `~/AquaProjects/.cursor/skills/QA_ConfidenceWorkflow/` (when AquaProjects is open)
+- `~/.cursor/skills/QA_ConfidenceWorkflow/` (global — works in every Cursor chat)
+
+Then start a **new** Agent chat and type `/QA_ConfidenceWorkflow`.

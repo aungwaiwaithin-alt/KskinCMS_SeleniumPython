@@ -1,63 +1,72 @@
 ---
 name: QA_ConfidenceWorkflow
 description: >-
-  Map Kskin CMS manual cases to automation scenarios, estimate skip-vs-manual
-  confidence (slightly pessimistic), and update qa-confidence YAML + generated
-  report. Invoke with /QA_ConfidenceWorkflow, when asked “can we skip this
-  manual case?”, or when seeding/updating confidence mappings after a green run.
+  Map manual QA cases to automation scenarios and estimate skip-vs-manual
+  confidence (slightly pessimistic) for Kskin CMS web, mobile, or other
+  AquaProjects suites. Invoke with /QA_ConfidenceWorkflow, when asked “can we
+  skip this manual case?”, or after a green run when updating mappings.
 ---
 
-# QA Confidence Workflow
+# QA Confidence Workflow (AquaProjects-wide)
 
-Use this skill for **traceability + confidence** (skip vs manual), not for inventing extra pass/fail suites.
+Use for **traceability + confidence** (skip vs manual) across projects under
+`/Users/aungwaiwaithin/AquaProjects` — CMS web, mobile, etc.
+Not for inventing extra pass/fail suites.
 
 ## When to invoke
 
 - User says **`/QA_ConfidenceWorkflow`**
 - “Can we skip this manual case?” / “how confident are we?”
-- Seeding or updating `qa-confidence/scenarios/` or `cases/` after automation work
-- Attaching a StepReporter HTML to refresh failed / not-tested hints
+- Seeding or updating `qa-confidence/scenarios/` or `cases/` after automation
+- Attaching a StepReporter / mobile HTML report to refresh failed / not-tested
 
-## Canonical paths
+## Where things live
 
-**Single source of truth = this CMS automation git repo** (`qa-confidence/` next to module scripts).
+| Piece | Location |
+|--------|----------|
+| This skill (shared source) | `AquaProjects/QA_ConfidenceWorkflow/SKILL.md` |
+| Cursor global install | `~/.cursor/skills/QA_ConfidenceWorkflow/SKILL.md` |
+| Per-project mappings | `<project>/qa-confidence/` (e.g. `KskinCMS/qa-confidence/`) |
+| Generator | `<project>/scripts/generate_qa_confidence_report.py` if present |
+| Run HTML | project `reports/` or `~/kskin-web(cms)-automation/reports/` |
 
-- Authored: `qa-confidence/`
-- Generator: `scripts/generate_qa_confidence_report.py`
-- Versioned skill: `qa-confidence/skill/SKILL.md`
-- Install to Cursor: `bash qa-confidence/skill/install.sh`
-- Optional Mac notes mirror: `bash qa-confidence/skill/sync-to-notes.sh` (one-way copy for people who keep HTML under `~/kskin-web(cms)-automation/reports/`)
+**Resolve `qa-confidence/` from the open project first.** If missing, create it there (copy structure from `KskinCMS/qa-confidence/`) — do not invent a second conflicting tree.
 
-Read first: `qa-confidence/README.md`, `prompts/agent_guardrails.md`, `trust_policy.yaml`, `schema.md`.
+Read first in that folder: `README.md`, `prompts/agent_guardrails.md`, `trust_policy.yaml`, `schema.md`.
 
 ## Pre
 
-- Load the case + linked scenario (if any).
-- Choose the **cheapest** CMS layer: listing smoke → validations → QA CRUD → cross-module E2E.
-- Reuse existing helpers (`cms_auth` / `playwright_auth` / module scripts). One module, one browser, one login.
-- Soft-fails → Failed. No invented edits on view-only modules.
+1. Identify platform: **CMS web** vs **mobile** (Appium) vs other.
+2. Load case + linked scenario YAML if they exist.
+3. Prefer the **cheapest reliable layer**:
+   - **CMS web:** listing smoke → validations → QA-item CRUD → cross-module E2E
+   - **Mobile:** smoke (launch/login) → single-screen flow → multi-screen / back-press / dialogs → true E2E only if risk needs it
+4. Match that project’s helpers (e.g. `cms_auth` / `playwright_auth` / Appium MCP). One session / one login / one module at a time for CMS.
+5. Soft-fails → **Failed**. No invented edits on view-only screens.
 
 ## Post
 
-- State layer added, confidence estimate, remaining caveats.
-- **Update** scenario/case YAML **in this repo** — do not leave mapping stale; do not treat a notes-folder copy as canonical.
-- Never claim `trusted` with open caveats; stay slightly pessimistic.
-- Regenerate:
+1. State **layer** added and **confidence** (`trusted` / `review` / `manual` / …) — slightly pessimistic.
+2. List remaining **caveats** that block `trusted`.
+3. **Update** that project’s scenario/case YAML — keep mappings in the project that owns the automation.
+4. Never claim `trusted` with open caveats.
+5. Regenerate if the project has the generator:
 
 ```bash
 python3 scripts/generate_qa_confidence_report.py
 python3 scripts/generate_qa_confidence_report.py --include-examples
-python3 scripts/generate_qa_confidence_report.py --run-report reports/KS-CMS-….html
+python3 scripts/generate_qa_confidence_report.py --run-report reports/<suite>.html
 ```
 
 ## Report separation
 
 | Report | Purpose |
 |--------|---------|
-| StepReporter `reports/KS-CMS-*.html` | Run pass/fail + screenshots |
+| StepReporter / mobile HTML under `reports/` | Run pass/fail + screenshots |
 | `qa-confidence/generated/qa_confidence_report.html` | Skip / review / manual decisions |
 
-## Seeded today
+## CMS hard rules (when in KskinCMS)
 
-- **Products** — 11 scenarios `trusted` (suite `KS-CMS-PRODUCT-001`). Re-check if the suite goes red.
-- `_example_*` — demo only.
+- QA-item status toggles only (Gift Card singleton exception).
+- Actions first before automating.
+- Products are seeded **trusted** (11 scenarios, `KS-CMS-PRODUCT-001`) while that suite stays green.
