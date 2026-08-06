@@ -60,6 +60,14 @@ Hard rule: confidence ≠ “a test exists”. Never claim `trusted` with open c
 Use **`/QA_ConfidenceWorkflow`** (skill `QA_ConfidenceWorkflow`).  
 Read `prompts/agent_guardrails.md` before changing mappings or answering skip-manual questions.
 
+Cursor loads personal skills from `~/.cursor/skills/`, which no repo tracks. The versioned copy lives in `skill/SKILL.md`; install or restore it with:
+
+```bash
+bash qa-confidence/skill/install.sh
+```
+
+Then reload Cursor so the slash command appears.
+
 ## Framework-only note
 
 `_example_*` files are **demo templates**. Seed real modules (Products, Beacons, …) as separate YAML after green suites — do not treat examples as release guidance.

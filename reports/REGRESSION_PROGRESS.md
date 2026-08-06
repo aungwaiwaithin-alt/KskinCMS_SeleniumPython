@@ -20,7 +20,13 @@ Continue from here next session. Code: this repo (`KskinCMS` / `kskincms_seleniu
 
 ## QA confidence workflow
 Authored framework: [`qa-confidence/`](../qa-confidence/README.md)  
-Skill: **`/QA_ConfidenceWorkflow`** (`~/.cursor/skills/QA_ConfidenceWorkflow/SKILL.md`)
+Skill: **`/QA_ConfidenceWorkflow`** — versioned at `qa-confidence/skill/SKILL.md`.
+
+`~/.cursor/skills/` is outside git, so a new machine has no slash command until you run:
+
+```bash
+bash qa-confidence/skill/install.sh
+```
 
 Framework-only right now — `_example_*` templates only (not release guidance). Seed real modules after green suites.
 
