@@ -1,4 +1,4 @@
-# Fee Management — mapped to KS-CMS-FEE-MGMT-001 (6/6 green on staging).
+# Fee Management — mapped to KS-CMS-FEE-MGMT-001 (8/8 green on staging).
 # QA approved as trusted (2026-08-06). Keep caveats empty only while suite stays green.
 module: Fee Management
 scenarios:
@@ -39,22 +39,21 @@ scenarios:
     caveats: []
     recommended_next: None.
 
-  - scenario_id: SC-CMS-FEE-EDIT-DEFAULT-001
-    title: Edit Platform Fee default % then restore
+  - scenario_id: SC-CMS-FEE-VALIDATION-001
+    title: Edit default required validation (empty Percentage / Minimum Fee / both)
     manual_case_ids: [MC-FEE-004]
     automation:
       suite_id: KS-CMS-FEE-MGMT-001
       script: FeeManagement_Module/FeeManagement.py
       steps: [4]
-    layer: qa_crud
+    layer: validations
     confidence: trusted
     caveats:
-      - Always restores original default % after temp edit.
-      - Dialog Save uses JS click fallback (role click flaky).
-    recommended_next: Spot-check if fee dialog markup changes.
+      - Asserts "Percentage is required" and "Minimum fee is required"; Cancel must not mutate defaults.
+    recommended_next: Spot-check if dialog copy/validation rules change.
 
-  - scenario_id: SC-CMS-FEE-OVERRIDE-001
-    title: Outlet override % on QA outlet then restore
+  - scenario_id: SC-CMS-FEE-EDIT-DEFAULT-001
+    title: Edit Platform Fee default % then restore
     manual_case_ids: [MC-FEE-005]
     automation:
       suite_id: KS-CMS-FEE-MGMT-001
@@ -63,16 +62,44 @@ scenarios:
     layer: qa_crud
     confidence: trusted
     caveats:
-      - Targets a QA-named outlet row; always restores.
-    recommended_next: None while QA Fran Outlet remains on staging.
+      - Always restores original default % after temp edit.
+      - Dialog Save uses JS click fallback (role click flaky).
+    recommended_next: Spot-check if fee dialog markup changes.
 
-  - scenario_id: SC-CMS-FEE-ROWS-001
-    title: Platform Fee detail rows-per-page change + restore
+  - scenario_id: SC-CMS-FEE-MIN-FEE-001
+    title: Edit default Minimum Fee (If applicable) then restore
     manual_case_ids: [MC-FEE-006]
     automation:
       suite_id: KS-CMS-FEE-MGMT-001
       script: FeeManagement_Module/FeeManagement.py
       steps: [6]
+    layer: qa_crud
+    confidence: trusted
+    caveats:
+      - Minimum Fee is dialog-only (not shown on detail page); verify via re-open.
+      - Always restores original S$ minimum.
+    recommended_next: None.
+
+  - scenario_id: SC-CMS-FEE-OVERRIDE-001
+    title: Outlet override % on QA outlet then restore
+    manual_case_ids: [MC-FEE-007]
+    automation:
+      suite_id: KS-CMS-FEE-MGMT-001
+      script: FeeManagement_Module/FeeManagement.py
+      steps: [7]
+    layer: qa_crud
+    confidence: trusted
+    caveats:
+      - Targets a QA-named outlet row; always restores.
+    recommended_next: None while QA Fran Outlet remains on staging.
+
+  - scenario_id: SC-CMS-FEE-ROWS-001
+    title: Platform Fee detail rows-per-page change + restore
+    manual_case_ids: [MC-FEE-008]
+    automation:
+      suite_id: KS-CMS-FEE-MGMT-001
+      script: FeeManagement_Module/FeeManagement.py
+      steps: [8]
     layer: listing_smoke
     confidence: trusted
     caveats: []

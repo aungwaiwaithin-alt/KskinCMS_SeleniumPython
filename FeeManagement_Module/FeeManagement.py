@@ -128,6 +128,19 @@ def _dialog_save(page: Page, dlg=None) -> None:
         )
 
 
+def _dialog_cancel(page: Page, dlg=None) -> None:
+    root = dlg if dlg is not None else page.locator("[role='dialog']").last
+    cancel = root.locator("button").filter(has_text=re.compile(r"^\s*cancel\s*$", re.I))
+    if cancel.count() >= 1:
+        try:
+            cancel.first.click(timeout=5000)
+        except Exception:
+            cancel.first.click(timeout=5000, force=True)
+    else:
+        page.keyboard.press("Escape")
+    time.sleep(0.3)
+
+
 def _open_platform_fee(page: Page) -> None:
     open_module(
         page,
@@ -219,10 +232,7 @@ def fee_view_detail(page: Page) -> None:
     print(f"Test 3 : Platform Fee detail OK ({rows.count()} outlet rows on page)")
 
 
-def fee_edit_default_restore(page: Page) -> None:
-    """Edit default % + min fee, verify, restore originals."""
-    _open_platform_fee(page)
-    # read current default from page text near label
+def _read_default_pct(page: Page) -> str:
     orig_pct = page.evaluate(
         """() => {
           const t = document.body.innerText;
@@ -235,21 +245,108 @@ def fee_edit_default_restore(page: Page) -> None:
             "Fee edit default FAILED: cannot read Default percentage "
             "(report to dev / Asana)"
         )
-    # pick a temporary distinct value
+    return orig_pct
+
+
+def _read_dialog_min_fee(dlg) -> str:
+    inp = dlg.locator('input[name="minimumFee"]').first
+    if inp.count() < 1:
+        raise AssertionError(
+            "Fee Minimum Fee FAILED: input[name=minimumFee] missing in "
+            "Edit default percentage dialog (report to dev / Asana)"
+        )
+    # assert label present
+    text = dlg.inner_text()
+    if "Minimum Fee" not in text:
+        raise AssertionError(
+            "Fee Minimum Fee FAILED: label 'Minimum Fee (If applicable)' "
+            "missing in dialog (report to dev / Asana)"
+        )
+    return inp.input_value() or "0"
+
+
+def fee_edit_default_required_validation(page: Page) -> None:
+    """Empty-state required validation on Edit default percentage dialog."""
+    _open_platform_fee(page)
+    orig_pct = _read_default_pct(page)
+
+    _click_edit_default(page)
+    dlg = _dialog(page)
+    time.sleep(0.4)
+    orig_min = _read_dialog_min_fee(dlg)
+
+    # 1) Percentage empty
+    _fill_named(dlg, "feeAmount", "")
+    _fill_named(dlg, "minimumFee", orig_min or "3")
+    _dialog_save(page, dlg)
+    time.sleep(0.7)
+    dlg = _dialog(page)
+    text = dlg.inner_text()
+    if "Percentage is required" not in text:
+        raise AssertionError(
+            "Fee validation FAILED: expected 'Percentage is required' when "
+            f"Percentage empty; got {text[:200]!r} (report to dev / Asana)"
+        )
+    print("Test 4a : Empty Percentage → 'Percentage is required'")
+
+    # 2) Minimum Fee empty
+    _fill_named(dlg, "feeAmount", orig_pct)
+    _fill_named(dlg, "minimumFee", "")
+    _dialog_save(page, dlg)
+    time.sleep(0.7)
+    dlg = _dialog(page)
+    text = dlg.inner_text()
+    if "Minimum fee is required" not in text:
+        raise AssertionError(
+            "Fee validation FAILED: expected 'Minimum fee is required' when "
+            f"Minimum Fee empty; got {text[:200]!r} (report to dev / Asana)"
+        )
+    print("Test 4b : Empty Minimum Fee → 'Minimum fee is required'")
+
+    # 3) Both empty
+    _fill_named(dlg, "feeAmount", "")
+    _fill_named(dlg, "minimumFee", "")
+    _dialog_save(page, dlg)
+    time.sleep(0.7)
+    dlg = _dialog(page)
+    text = dlg.inner_text()
+    missing = []
+    if "Percentage is required" not in text:
+        missing.append("Percentage is required")
+    if "Minimum fee is required" not in text:
+        missing.append("Minimum fee is required")
+    if missing:
+        raise AssertionError(
+            f"Fee validation FAILED: both-empty missing {missing}; "
+            f"got {text[:240]!r} (report to dev / Asana)"
+        )
+    # must not persist empties — cancel out
+    _dialog_cancel(page, dlg)
+    time.sleep(0.4)
+    # confirm defaults unchanged on page
+    still = _read_default_pct(page)
+    if abs(float(still) - float(orig_pct)) > 0.01:
+        raise AssertionError(
+            f"Fee validation FAILED: Cancel after empty save mutated default "
+            f"% {orig_pct} → {still} (report to dev / Asana)"
+        )
+    print("Test 4 : Required empty validation OK (pct + min fee + both)")
+
+
+def fee_edit_default_restore(page: Page) -> None:
+    """Edit default %, verify on detail, restore (keep Minimum Fee unchanged)."""
+    _open_platform_fee(page)
+    orig_pct = _read_default_pct(page)
     try:
         base = float(orig_pct)
     except ValueError:
         base = 5.0
     temp = "5.1" if abs(base - 5.1) > 0.01 else "5.2"
-    orig_min = "3"
 
     _click_edit_default(page)
     dlg = _dialog(page)
     time.sleep(0.4)
-    # capture original min from dialog
-    min_val = dlg.locator('input[name="minimumFee"]').first.input_value()
-    if min_val:
-        orig_min = min_val
+    orig_min = _read_dialog_min_fee(dlg)
     _fill_named(dlg, "feeAmount", temp)
     _fill_named(dlg, "minimumFee", orig_min)
     _dialog_save(page, dlg)
@@ -265,7 +362,7 @@ def fee_edit_default_restore(page: Page) -> None:
         raise AssertionError(
             f"Fee edit default FAILED: saved '{temp}' not shown (report to dev / Asana)"
         )
-    print(f"Test 4a : Default % updated {orig_pct} → {temp}")
+    print(f"Test 5a : Default % updated {orig_pct} → {temp}")
 
     # restore
     _click_edit_default(page)
@@ -287,7 +384,58 @@ def fee_edit_default_restore(page: Page) -> None:
             f"Fee edit default FAILED: restore to '{orig_pct}' not shown "
             "(report to dev / Asana)"
         )
-    print(f"Test 4 : Default percentage edit + restore OK ({orig_pct}%)")
+    print(f"Test 5 : Default percentage edit + restore OK ({orig_pct}%)")
+
+
+def fee_edit_minimum_fee_restore(page: Page) -> None:
+    """Edit default Minimum Fee (If applicable), verify in dialog, restore."""
+    _open_platform_fee(page)
+    orig_pct = _read_default_pct(page)
+
+    _click_edit_default(page)
+    dlg = _dialog(page)
+    time.sleep(0.4)
+    orig_min = _read_dialog_min_fee(dlg)
+    try:
+        base_min = float(orig_min)
+    except ValueError:
+        base_min = 3.0
+    # stay in a small safe band; prefer integer S$ values
+    temp_min = "4" if abs(base_min - 4.0) > 0.01 else "5"
+    _fill_named(dlg, "feeAmount", orig_pct)
+    _fill_named(dlg, "minimumFee", temp_min)
+    _dialog_save(page, dlg)
+    time.sleep(1.2)
+
+    # Minimum Fee is dialog-only — re-open and assert saved value
+    _click_edit_default(page)
+    dlg = _dialog(page)
+    time.sleep(0.4)
+    saved_min = _read_dialog_min_fee(dlg)
+    if abs(float(saved_min) - float(temp_min)) > 0.01:
+        raise AssertionError(
+            f"Fee Minimum Fee FAILED: expected saved '{temp_min}', got '{saved_min}' "
+            "(report to dev / Asana)"
+        )
+    print(f"Test 6a : Minimum Fee updated {orig_min} → {temp_min}")
+
+    # restore
+    _fill_named(dlg, "feeAmount", orig_pct)
+    _fill_named(dlg, "minimumFee", orig_min)
+    _dialog_save(page, dlg)
+    time.sleep(1.2)
+
+    _click_edit_default(page)
+    dlg = _dialog(page)
+    time.sleep(0.4)
+    restored = _read_dialog_min_fee(dlg)
+    if abs(float(restored) - float(orig_min)) > 0.01:
+        raise AssertionError(
+            f"Fee Minimum Fee FAILED: restore expected '{orig_min}', got '{restored}' "
+            "(report to dev / Asana)"
+        )
+    _dialog_cancel(page, dlg)
+    print(f"Test 6 : Minimum Fee edit + restore OK (S${orig_min})")
 
 
 def fee_override_outlet_restore(page: Page) -> None:
@@ -346,7 +494,7 @@ def fee_override_outlet_restore(page: Page) -> None:
             f"Fee outlet override FAILED: '{temp}' not on row {outlet_name!r} "
             f"got {row_txt[:80]!r} (report to dev / Asana)"
         )
-    print(f"Test 5a : Outlet override {outlet_name!r} → {temp}%")
+    print(f"Test 7a : Outlet override {outlet_name!r} → {temp}%")
 
     # restore to original
     row2.locator(".actions-column span").first.click()
@@ -363,7 +511,7 @@ def fee_override_outlet_restore(page: Page) -> None:
             f"Fee outlet override FAILED: restore '{orig}' not on row "
             f"{row_txt[:80]!r} (report to dev / Asana)"
         )
-    print(f"Test 5 : Outlet override + restore OK ({outlet_name!r})")
+    print(f"Test 7 : Outlet override + restore OK ({outlet_name!r})")
 
 
 def fee_detail_rows_per_page(page: Page) -> None:
@@ -377,7 +525,7 @@ def fee_detail_rows_per_page(page: Page) -> None:
             target = s
             break
     if target is None:
-        print(f"Test 6 : Rows/page N/A ({page.locator('table tbody tr').count()} rows)")
+        print(f"Test 8 : Rows/page N/A ({page.locator('table tbody tr').count()} rows)")
         return
     target.select_option("20")
     time.sleep(1.5)
@@ -399,4 +547,4 @@ def fee_detail_rows_per_page(page: Page) -> None:
             time.sleep(0.5)
         except Exception:
             pass
-    print(f"Test 6 : Detail rows/page OK (20→{n20} rows, restored 10)")
+    print(f"Test 8 : Detail rows/page OK (20→{n20} rows, restored 10)")
