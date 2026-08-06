@@ -1,0 +1,141 @@
+# Products — mapped to KS-CMS-PRODUCT-001 (11/11 green on staging).
+# QA approved all as trusted (2026-08-05). Keep caveats empty only while suite stays green.
+module: Products
+scenarios:
+  - scenario_id: SC-CMS-PRODUCT-OPEN-001
+    title: Open Products listing after CMS login
+    manual_case_ids: [MC-PRODUCT-001]
+    automation:
+      suite_id: KS-CMS-PRODUCT-001
+      script: Product_Module/Product.py
+      steps: [1]
+    layer: listing_smoke
+    confidence: trusted
+    caveats: []
+    recommended_next: Re-run suite if listing shell/nav changes.
+    nearby_tests: [Beacons_Module/Beacons.py]
+
+  - scenario_id: SC-CMS-PRODUCT-SEARCH-001
+    title: Product search matched/unmatched + Active status filter
+    manual_case_ids: [MC-PRODUCT-002]
+    automation:
+      suite_id: KS-CMS-PRODUCT-001
+      script: Product_Module/Product.py
+      steps: [2]
+    layer: listing_smoke
+    confidence: trusted
+    caveats: []
+    recommended_next: Spot-check Inactive filter if product ops care.
+
+  - scenario_id: SC-CMS-PRODUCT-CREATE-001
+    title: Duplicate + Publish QA product (unique name/sku/pos)
+    manual_case_ids: [MC-PRODUCT-003]
+    automation:
+      suite_id: KS-CMS-PRODUCT-001
+      script: Product_Module/Product.py
+      steps: [3]
+    layer: qa_crud
+    confidence: trusted
+    caveats:
+      - Creates a QA-owned row; leave ACTIVE after suite.
+    recommended_next: None while Duplicate+Publish stays green.
+
+  - scenario_id: SC-CMS-PRODUCT-STATUS-INACTIVE-001
+    title: ACTIVE → INACTIVE on QA product only
+    manual_case_ids: [MC-PRODUCT-004]
+    automation:
+      suite_id: KS-CMS-PRODUCT-001
+      script: Product_Module/Product.py
+      steps: [4]
+    layer: qa_crud
+    confidence: trusted
+    caveats:
+      - Must never toggle non-QA catalog rows.
+    recommended_next: None.
+
+  - scenario_id: SC-CMS-PRODUCT-STATUS-ACTIVE-001
+    title: INACTIVE → ACTIVE on same QA product
+    manual_case_ids: [MC-PRODUCT-005]
+    automation:
+      suite_id: KS-CMS-PRODUCT-001
+      script: Product_Module/Product.py
+      steps: [5]
+    layer: qa_crud
+    confidence: trusted
+    caveats:
+      - Must never toggle non-QA catalog rows.
+    recommended_next: None.
+
+  - scenario_id: SC-CMS-PRODUCT-PAGINATION-001
+    title: Rows per page + pagination on Products listing
+    manual_case_ids: [MC-PRODUCT-006]
+    automation:
+      suite_id: KS-CMS-PRODUCT-001
+      script: Product_Module/Product.py
+      steps: [6]
+    layer: listing_smoke
+    confidence: trusted
+    caveats:
+      - Step may report N/A when listing is a single page.
+    recommended_next: None.
+
+  - scenario_id: SC-CMS-PRODUCT-VIEW-001
+    title: Open created QA product view/edit form
+    manual_case_ids: [MC-PRODUCT-007]
+    automation:
+      suite_id: KS-CMS-PRODUCT-001
+      script: Product_Module/Product.py
+      steps: [7]
+    layer: qa_crud
+    confidence: trusted
+    caveats: []
+    recommended_next: None.
+
+  - scenario_id: SC-CMS-PRODUCT-EDIT-001
+    title: Edit QA product name + Publish Changes
+    manual_case_ids: [MC-PRODUCT-008]
+    automation:
+      suite_id: KS-CMS-PRODUCT-001
+      script: Product_Module/Product.py
+      steps: [8]
+    layer: qa_crud
+    confidence: trusted
+    caveats: []
+    recommended_next: None.
+
+  - scenario_id: SC-CMS-PRODUCT-VALIDATION-001
+    title: Required validations on blank Add (media required on Publish)
+    manual_case_ids: [MC-PRODUCT-009]
+    automation:
+      suite_id: KS-CMS-PRODUCT-001
+      script: Product_Module/Product.py
+      steps: [9]
+    layer: validations
+    confidence: trusted
+    caveats: []
+    recommended_next: Add more field-level asserts only if Product form grows required fields.
+
+  - scenario_id: SC-CMS-PRODUCT-DRAFT-001
+    title: Blank Add → Save as draft listed
+    manual_case_ids: [MC-PRODUCT-010]
+    automation:
+      suite_id: KS-CMS-PRODUCT-001
+      script: Product_Module/Product.py
+      steps: [10]
+    layer: qa_crud
+    confidence: trusted
+    caveats: []
+    recommended_next: None.
+
+  - scenario_id: SC-CMS-PRODUCT-STOCK-001
+    title: Update Stock + restore on QA product
+    manual_case_ids: [MC-PRODUCT-011]
+    automation:
+      suite_id: KS-CMS-PRODUCT-001
+      script: Product_Module/Product.py
+      steps: [11]
+    layer: qa_crud
+    confidence: trusted
+    caveats:
+      - Restores stock after temp +1; confirm restore if stock UX changes.
+    recommended_next: None.

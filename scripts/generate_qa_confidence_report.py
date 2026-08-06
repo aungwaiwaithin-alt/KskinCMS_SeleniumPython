@@ -58,15 +58,38 @@ def _is_demo_doc(doc: Dict[str, Any], path: Path) -> bool:
     return _is_demo_path(path)
 
 
+def _expand_docs(path: Path, doc: Any) -> List[Dict[str, Any]]:
+    """One file = one mapping, or a list under scenarios:/cases:/items:."""
+    if isinstance(doc, list):
+        return [d for d in doc if isinstance(d, dict)]
+    if not isinstance(doc, dict):
+        return []
+    for key in ("scenarios", "cases", "items"):
+        if isinstance(doc.get(key), list):
+            shared_example = doc.get("example")
+            shared_module = doc.get("module")
+            rows: List[Dict[str, Any]] = []
+            for item in doc[key]:
+                if not isinstance(item, dict):
+                    continue
+                row = dict(item)
+                if shared_example is not None and "example" not in row:
+                    row["example"] = shared_example
+                if shared_module and "module" not in row:
+                    row["module"] = shared_module
+                rows.append(row)
+            return rows
+    return [doc]
+
+
 def _iter_yaml(dir_path: Path) -> List[Tuple[Path, Dict[str, Any]]]:
     if not dir_path.is_dir():
         return []
     out: List[Tuple[Path, Dict[str, Any]]] = []
     for path in sorted(dir_path.glob("*.yaml")):
-        doc = _load_yaml(path)
-        if not isinstance(doc, dict):
-            continue
-        out.append((path, doc))
+        raw = _load_yaml(path)
+        for doc in _expand_docs(path, raw):
+            out.append((path, doc))
     return out
 
 

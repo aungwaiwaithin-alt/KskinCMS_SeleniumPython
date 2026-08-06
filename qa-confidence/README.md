@@ -2,20 +2,38 @@
 
 Traceability + confidence for **skip vs manual** decisions — not another pass/fail suite.
 
-Authored mappings live here. Generated HTML/JSON under `generated/` (gitignored). Existing StepReporter reports under `reports/` stay the **run** evidence (pass/fail + screenshots).
+## Canonical home (single source of truth)
+
+**This CMS automation git repo** owns authored mappings + the skill installer:
+
+| What | Where |
+|------|--------|
+| Authored YAML / policy / prompts | `qa-confidence/` (this repo) |
+| Generator | `scripts/generate_qa_confidence_report.py` |
+| Cursor skill (versioned) | `qa-confidence/skill/SKILL.md` |
+| Skill install (local Cursor) | `bash qa-confidence/skill/install.sh` |
+| StepReporter run HTML | Usually `~/kskin-web(cms)-automation/reports/` on your Mac |
+
+Optional Mac notes mirror (HTML reports folder only — **not** the source of truth):
+
+```bash
+bash qa-confidence/skill/sync-to-notes.sh
+```
+
+That copies authored YAML one-way into `~/kskin-web(cms)-automation/qa-confidence/` and reinstalls the skill. Edit mappings **here**, then sync if you want the notes tree updated.
 
 ## Quick start
 
 ```bash
-# From repo root (this package)
+# From this repo root
 python3 scripts/generate_qa_confidence_report.py
 
 # Include demo/_example_* mappings (default skips them)
 python3 scripts/generate_qa_confidence_report.py --include-examples
 
-# Fold in a StepReporter HTML lightly (pass/fail counts → failed / not-tested hints)
+# Fold in a StepReporter HTML lightly
 python3 scripts/generate_qa_confidence_report.py \
-  --run-report reports/KS-CMS-PRODUCT-001_products.html
+  --run-report /path/to/KS-CMS-PRODUCT-001_products.html
 
 open qa-confidence/generated/qa_confidence_report.html   # or xdg-open
 ```
@@ -26,14 +44,22 @@ Requires Python 3.8+ and PyYAML (`pip install pyyaml`).
 
 ```
 qa-confidence/
-  README.md              # this file
-  trust_policy.yaml      # buckets + cheapest CMS layer order
-  schema.md              # field meanings
-  scenarios/             # automation ↔ risk mappings
-  cases/                 # manual cases → scenario_id
-  prompts/               # agent guardrails + copyable prompt
-  generated/             # output (gitignored)
+  README.md
+  trust_policy.yaml
+  schema.md
+  scenarios/             # real modules + _example_*
+  cases/
+  prompts/
+  skill/                 # versioned Cursor skill + installers
+  generated/             # gitignored output
 ```
+
+## Seeded modules
+
+| Module | Mapping | Confidence |
+|--------|---------|------------|
+| Products | `scenarios/product.yaml` + `cases/product_cases.yaml` | **trusted** (11 scenarios; suite KS-CMS-PRODUCT-001) |
+| (template) | `_example_*` | demo only — skipped unless `--include-examples` |
 
 ## Confidence buckets (slightly pessimistic)
 
@@ -57,17 +83,13 @@ Hard rule: confidence ≠ “a test exists”. Never claim `trusted` with open c
 
 ## Agent invoke
 
-Use **`/QA_ConfidenceWorkflow`** (skill `QA_ConfidenceWorkflow`).  
+Use **`/QA_ConfidenceWorkflow`**.  
 Read `prompts/agent_guardrails.md` before changing mappings or answering skip-manual questions.
 
-Cursor loads personal skills from `~/.cursor/skills/`, which no repo tracks. The versioned copy lives in `skill/SKILL.md`; install or restore it with:
+Cursor loads personal skills from `~/.cursor/skills/`, which no repo tracks. Restore with:
 
 ```bash
 bash qa-confidence/skill/install.sh
 ```
 
 Then reload Cursor so the slash command appears.
-
-## Framework-only note
-
-`_example_*` files are **demo templates**. Seed real modules (Products, Beacons, …) as separate YAML after green suites — do not treat examples as release guidance.

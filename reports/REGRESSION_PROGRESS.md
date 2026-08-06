@@ -1,6 +1,6 @@
 # Kskin CMS regression handoff
 
-Continue from here next session. Code: this repo (`KskinCMS` / `kskincms_seleniumpython`).
+Continue from here next session. Code + **canonical QA confidence**: this repo.
 
 ## Environment
 | Item | Value |
@@ -18,28 +18,23 @@ Continue from here next session. Code: this repo (`KskinCMS` / `kskincms_seleniu
 4. Actions first → all doable testing (fields + validations; hard Failed)
 5. View-only modules → listing/search/pagination asserts only (no invent edit)
 
-## QA confidence workflow
-Authored framework: [`qa-confidence/`](../qa-confidence/README.md)  
-Skill: **`/QA_ConfidenceWorkflow`** — versioned at `qa-confidence/skill/SKILL.md`.
+## QA confidence workflow (canonical = this repo)
+- Authored: [`qa-confidence/`](../qa-confidence/README.md)
+- Skill: **`/QA_ConfidenceWorkflow`** — `qa-confidence/skill/SKILL.md`
+- Products seeded: **11 scenarios trusted** (`scenarios/product.yaml`)
 
-`~/.cursor/skills/` is outside git, so a new machine has no slash command until you run:
+`~/.cursor/skills/` is outside git. On any machine:
 
 ```bash
 bash qa-confidence/skill/install.sh
-```
-
-Framework-only right now — `_example_*` templates only (not release guidance). Seed real modules after green suites.
-
-```bash
+# optional if you still use the Mac notes reports folder:
+bash qa-confidence/skill/sync-to-notes.sh
 python3 scripts/generate_qa_confidence_report.py
-python3 scripts/generate_qa_confidence_report.py --include-examples
-open qa-confidence/generated/qa_confidence_report.html
 ```
+
+Do **not** edit a notes-folder copy as the source of truth — edit here, then sync.
 
 ## Next
-1. Finish **Fee Management** Playwright suite to green (existing fail was Edit default % click timeout).
-2. Seed real `qa-confidence/scenarios/` for green modules (start Products / Beacons) — keep slightly pessimistic.
-3. Continue remaining Playwright modules per actions-first rules.
-
-## Note
-Older “Tomorrow” scratch lists are retired — use this file + `qa-confidence/` for skip/manual triage.
+1. Finish **Fee Management** Playwright suite to green (prior fail: Edit default % click timeout).
+2. Seed more modules into `qa-confidence/scenarios/` after each green suite (Beacons, Franchisee Reports, …).
+3. Keep Products trusted only while `KS-CMS-PRODUCT-001` stays green.

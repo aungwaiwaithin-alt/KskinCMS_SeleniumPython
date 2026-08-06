@@ -13,12 +13,15 @@ alwaysApply: true
 
 ## QA confidence (skip vs manual)
 
-Framework under `qa-confidence/` — not another pass/fail suite.
+**Canonical** framework under `qa-confidence/` in this CMS git repo — not another pass/fail suite.
 
 - Invoke with **`/QA_ConfidenceWorkflow`** (skill `QA_ConfidenceWorkflow`).
+- Restore slash command: `bash qa-confidence/skill/install.sh`
+- Optional notes mirror: `bash qa-confidence/skill/sync-to-notes.sh` (one-way; edit here first).
 - Read `qa-confidence/README.md` + `qa-confidence/prompts/agent_guardrails.md`.
 - Prefer cheapest CMS layer from `qa-confidence/trust_policy.yaml`.
 - Update scenario/case YAML after work; regenerate via `scripts/generate_qa_confidence_report.py`.
 - Never claim `trusted` with open caveats; `_example_*` is demo only.
+- Products are seeded as trusted (11 scenarios) while suite stays green.
 
 Handoff: `reports/REGRESSION_PROGRESS.md`.

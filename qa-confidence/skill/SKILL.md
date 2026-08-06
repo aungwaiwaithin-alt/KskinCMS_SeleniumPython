@@ -18,12 +18,15 @@ Use this skill for **traceability + confidence** (skip vs manual), not for inven
 - Seeding or updating `qa-confidence/scenarios/` or `cases/` after automation work
 - Attaching a StepReporter HTML to refresh failed / not-tested hints
 
-## Paths
+## Canonical paths
 
-Authored framework lives in whichever checkout you are working from:
+**Single source of truth = this CMS automation git repo** (`qa-confidence/` next to module scripts).
 
-- CMS automation repo: `qa-confidence/` + `scripts/generate_qa_confidence_report.py`
-- Notes mirror (Mac): `~/kskin-web(cms)-automation/qa-confidence/`
+- Authored: `qa-confidence/`
+- Generator: `scripts/generate_qa_confidence_report.py`
+- Versioned skill: `qa-confidence/skill/SKILL.md`
+- Install to Cursor: `bash qa-confidence/skill/install.sh`
+- Optional Mac notes mirror: `bash qa-confidence/skill/sync-to-notes.sh` (one-way copy for people who keep HTML under `~/kskin-web(cms)-automation/reports/`)
 
 Read first: `qa-confidence/README.md`, `prompts/agent_guardrails.md`, `trust_policy.yaml`, `schema.md`.
 
@@ -37,7 +40,7 @@ Read first: `qa-confidence/README.md`, `prompts/agent_guardrails.md`, `trust_pol
 ## Post
 
 - State layer added, confidence estimate, remaining caveats.
-- **Update** scenario/case YAML — do not leave mapping stale.
+- **Update** scenario/case YAML **in this repo** — do not leave mapping stale; do not treat a notes-folder copy as canonical.
 - Never claim `trusted` with open caveats; stay slightly pessimistic.
 - Regenerate:
 
@@ -54,6 +57,7 @@ python3 scripts/generate_qa_confidence_report.py --run-report reports/KS-CMS-…
 | StepReporter `reports/KS-CMS-*.html` | Run pass/fail + screenshots |
 | `qa-confidence/generated/qa_confidence_report.html` | Skip / review / manual decisions |
 
-## Out of scope for framework-only seeds
+## Seeded today
 
-Do not treat `_example_*` / `example: true` as release guidance. Seed real modules only after green suites.
+- **Products** — 11 scenarios `trusted` (suite `KS-CMS-PRODUCT-001`). Re-check if the suite goes red.
+- `_example_*` — demo only.

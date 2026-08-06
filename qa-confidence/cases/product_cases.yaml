@@ -1,0 +1,36 @@
+# Manual-style cases for Products — linked to scenarios/product.yaml
+module: Products
+cases:
+  - case_id: MC-PRODUCT-001
+    title: Open Products listing after login
+    scenario_id: SC-CMS-PRODUCT-OPEN-001
+  - case_id: MC-PRODUCT-002
+    title: Search by name + Active status filter
+    scenario_id: SC-CMS-PRODUCT-SEARCH-001
+  - case_id: MC-PRODUCT-003
+    title: Create QA product via Duplicate + Publish
+    scenario_id: SC-CMS-PRODUCT-CREATE-001
+  - case_id: MC-PRODUCT-004
+    title: Set QA product inactive
+    scenario_id: SC-CMS-PRODUCT-STATUS-INACTIVE-001
+  - case_id: MC-PRODUCT-005
+    title: Set QA product active again
+    scenario_id: SC-CMS-PRODUCT-STATUS-ACTIVE-001
+  - case_id: MC-PRODUCT-006
+    title: Change rows per page / pagination
+    scenario_id: SC-CMS-PRODUCT-PAGINATION-001
+  - case_id: MC-PRODUCT-007
+    title: View created QA product form
+    scenario_id: SC-CMS-PRODUCT-VIEW-001
+  - case_id: MC-PRODUCT-008
+    title: Edit QA product and publish
+    scenario_id: SC-CMS-PRODUCT-EDIT-001
+  - case_id: MC-PRODUCT-009
+    title: Blank Add shows required media validation on Publish
+    scenario_id: SC-CMS-PRODUCT-VALIDATION-001
+  - case_id: MC-PRODUCT-010
+    title: Save blank Add as draft
+    scenario_id: SC-CMS-PRODUCT-DRAFT-001
+  - case_id: MC-PRODUCT-011
+    title: Update Stock then restore on QA product
+    scenario_id: SC-CMS-PRODUCT-STOCK-001
