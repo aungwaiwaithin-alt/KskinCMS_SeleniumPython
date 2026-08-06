@@ -1,0 +1,40 @@
+# QA Confidence — trust buckets + CMS cheapest reliable layer order
+# Slightly pessimistic by default: confidence ≠ “a test exists”.
+
+version: 1
+
+buckets:
+  trusted:
+    meaning: Strong current evidence — usually skip manual
+    skip_manual: usually
+  review:
+    meaning: Useful automation — inspect before skip
+    skip_manual: after_spot_check
+  manual:
+    meaning: Evidence too weak — run manually
+    skip_manual: no
+  failed:
+    meaning: Mapped automation failed — investigate
+    skip_manual: no
+  not-tested:
+    meaning: Mapped but not exercised in latest run
+    skip_manual: no
+  unmapped:
+    meaning: Case not linked to a scenario — triage first
+    skip_manual: no
+
+# Prefer the cheapest reliable layer that answers the risk (CMS web, not Android stack).
+cms_cheapest_layer_order:
+  - id: listing_smoke
+    label: Listing / search / pagination smoke
+  - id: validations
+    label: Required-field / validation asserts
+  - id: qa_crud
+    label: CRUD on QA-owned items (create/edit/status + restore)
+  - id: cross_module_e2e
+    label: Cross-module / true E2E only when risk needs it
+
+hard_rules:
+  - Never claim trusted without caveats cleared.
+  - Soft-fails and “looks OK” without asserts → Failed / review, not trusted.
+  - Example / demo mappings (_example_*, example: true) are not release guidance.

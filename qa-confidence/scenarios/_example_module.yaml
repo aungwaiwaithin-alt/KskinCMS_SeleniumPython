@@ -1,0 +1,23 @@
+# DEMO / template only — not real coverage claims. Do not use for skip-manual decisions.
+example: true
+scenario_id: SC-CMS-EXAMPLE-LIST-001
+title: "Example — listing smoke (template)"
+module: ExampleModule
+manual_case_ids:
+  - MC-EXAMPLE-001
+automation:
+  suite_id: KS-CMS-EXAMPLE-001
+  script: Example_Module/Example.py
+  steps:
+    - 1  # open listing
+    - 2  # search / filter
+    - 3  # rows per page
+layer: listing_smoke
+confidence: review
+caveats:
+  - Template only; replace with a real module mapping before trusting.
+  - No live run evidence attached by default.
+recommended_next: Seed a real module scenario from an existing green suite (e.g. Products).
+nearby_tests:
+  - Product_Module/Product.py
+  - Beacons_Module/Beacons.py

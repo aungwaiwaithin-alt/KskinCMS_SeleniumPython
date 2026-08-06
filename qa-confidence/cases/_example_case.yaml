@@ -1,0 +1,7 @@
+# DEMO stub — links to the example scenario. Not a real manual case.
+example: true
+case_id: MC-EXAMPLE-001
+title: "Example — open listing and confirm table hydrates"
+module: ExampleModule
+scenario_id: SC-CMS-EXAMPLE-LIST-001
+notes: Template for importing real manual sheets later.

@@ -22,3 +22,8 @@ __pycache__/
 .vscode/
 reports/
 **/screenshots/
+
+# QA confidence generated output (authored YAML stays tracked)
+qa-confidence/generated/*
+!qa-confidence/generated/.gitkeep
+qa-confidence/generated/*.json
