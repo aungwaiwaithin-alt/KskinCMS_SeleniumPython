@@ -1,0 +1,79 @@
+# Fee Management — mapped to KS-CMS-FEE-MGMT-001 (6/6 green on staging).
+# QA approved as trusted (2026-08-06). Keep caveats empty only while suite stays green.
+module: Fee Management
+scenarios:
+  - scenario_id: SC-CMS-FEE-OPEN-001
+    title: Open Fee Management listing after CMS login
+    manual_case_ids: [MC-FEE-001]
+    automation:
+      suite_id: KS-CMS-FEE-MGMT-001
+      script: FeeManagement_Module/FeeManagement.py
+      steps: [1]
+    layer: listing_smoke
+    confidence: trusted
+    caveats: []
+    recommended_next: Re-run suite if franchise nav/shell changes.
+    nearby_tests: [FranchiseeReports_Module]
+
+  - scenario_id: SC-CMS-FEE-LISTING-001
+    title: Listing shows fee types with view (eye) actions
+    manual_case_ids: [MC-FEE-002]
+    automation:
+      suite_id: KS-CMS-FEE-MGMT-001
+      script: FeeManagement_Module/FeeManagement.py
+      steps: [2]
+    layer: listing_smoke
+    confidence: trusted
+    caveats: []
+    recommended_next: None while 4 fee types remain.
+
+  - scenario_id: SC-CMS-FEE-VIEW-001
+    title: View Platform Fee detail (default % + outlet rows)
+    manual_case_ids: [MC-FEE-003]
+    automation:
+      suite_id: KS-CMS-FEE-MGMT-001
+      script: FeeManagement_Module/FeeManagement.py
+      steps: [3]
+    layer: listing_smoke
+    confidence: trusted
+    caveats: []
+    recommended_next: None.
+
+  - scenario_id: SC-CMS-FEE-EDIT-DEFAULT-001
+    title: Edit Platform Fee default % then restore
+    manual_case_ids: [MC-FEE-004]
+    automation:
+      suite_id: KS-CMS-FEE-MGMT-001
+      script: FeeManagement_Module/FeeManagement.py
+      steps: [4]
+    layer: qa_crud
+    confidence: trusted
+    caveats:
+      - Always restores original default % after temp edit.
+      - Dialog Save uses JS click fallback (role click flaky).
+    recommended_next: Spot-check if fee dialog markup changes.
+
+  - scenario_id: SC-CMS-FEE-OVERRIDE-001
+    title: Outlet override % on QA outlet then restore
+    manual_case_ids: [MC-FEE-005]
+    automation:
+      suite_id: KS-CMS-FEE-MGMT-001
+      script: FeeManagement_Module/FeeManagement.py
+      steps: [5]
+    layer: qa_crud
+    confidence: trusted
+    caveats:
+      - Targets a QA-named outlet row; always restores.
+    recommended_next: None while QA Fran Outlet remains on staging.
+
+  - scenario_id: SC-CMS-FEE-ROWS-001
+    title: Platform Fee detail rows-per-page change + restore
+    manual_case_ids: [MC-FEE-006]
+    automation:
+      suite_id: KS-CMS-FEE-MGMT-001
+      script: FeeManagement_Module/FeeManagement.py
+      steps: [6]
+    layer: listing_smoke
+    confidence: trusted
+    caveats: []
+    recommended_next: None.

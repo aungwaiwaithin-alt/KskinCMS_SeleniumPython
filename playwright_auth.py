@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import os
 import time
 from typing import Optional
 
@@ -49,7 +50,8 @@ def get_page() -> Page:
             quit_page()
 
     _PW = sync_playwright().start()
-    _BROWSER = _PW.chromium.launch(headless=False)
+    headless = os.environ.get("PLAYWRIGHT_HEADLESS", "").strip() in ("1", "true", "yes")
+    _BROWSER = _PW.chromium.launch(headless=headless)
     _CONTEXT = _BROWSER.new_context(
         viewport={"width": VIEWPORT_WIDTH, "height": VIEWPORT_HEIGHT},
     )
@@ -91,14 +93,35 @@ def login_cms(
 
     page.goto(LOGIN_URL, wait_until="domcontentloaded")
     page.wait_for_selector('input[name="email"]', timeout=20000)
-    time.sleep(1.5)
+    time.sleep(1.0)
 
-    page.fill('input[name="email"]', email)
-    page.fill('input[name="password"]', password)
-    page.get_by_role("button", name="Login").click()
+    # React controlled inputs — native setters (fill() leaves Login disabled)
+    page.evaluate(
+        """([email, password]) => {
+          const setNative = (el, v) => {
+            const setter = Object.getOwnPropertyDescriptor(
+              window.HTMLInputElement.prototype, 'value'
+            ).set;
+            setter.call(el, v);
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+          };
+          setNative(document.querySelector('input[name="email"]'), email);
+          setNative(document.querySelector('input[name="password"]'), password);
+        }""",
+        [email, password],
+    )
+    page.wait_for_function(
+        """() => {
+          const b = document.querySelector('button[type="submit"]');
+          return !!b && !b.disabled;
+        }""",
+        timeout=15000,
+    )
+    page.locator('button[type="submit"]').click()
 
-    page.wait_for_selector("#otp-field-0", timeout=20000)
-    time.sleep(0.5)
+    page.wait_for_selector("#otp-field-0", timeout=30000)
+    time.sleep(0.4)
     # React OTP — native value setter (same as Selenium cms_auth)
     page.evaluate(
         """(digit) => {
@@ -119,10 +142,19 @@ def login_cms(
     page.wait_for_function(
         """() => {
           const u = location.href || '';
-          return u.includes('/account/') && !u.includes('/login') && !u.includes('/otp-login');
+          const onAccount = u.includes('/account/') && !u.includes('/login') && !u.includes('/otp-login');
+          const shell = /Outlet Management|Franchise Management|Inventory/i.test(
+            document.body ? document.body.innerText : ''
+          );
+          return onAccount || shell;
         }""",
-        timeout=30000,
+        timeout=45000,
     )
+    # Prefer settling on a real account URL if SPA is mid-transition
+    for _ in range(20):
+        if _is_authenticated(page.url or ""):
+            break
+        time.sleep(0.25)
     print(f"CMS login + OTP completed. Landed: {page.url}")
 
 

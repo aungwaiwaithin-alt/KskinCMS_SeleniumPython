@@ -7,6 +7,7 @@ Staging `/account/franchise-management/fee-management`
 """
 from __future__ import annotations
 
+import re
 import time
 
 from playwright.sync_api import Page
@@ -21,6 +22,55 @@ def _dialog(page: Page):
     dlg = page.locator("[role='dialog']").last
     dlg.wait_for(state="visible", timeout=15000)
     return dlg
+
+
+def _click_edit_default(page: Page) -> None:
+    """Open Edit default percentage dialog (robust against overlay / naming)."""
+    page.wait_for_selector("text=Default percentage", timeout=20000)
+    time.sleep(0.3)
+    candidates = [
+        page.get_by_role("button", name=re.compile(r"edit\s*default\s*percentage", re.I)),
+        page.get_by_role("button", name=re.compile(r"edit\s*default", re.I)),
+        page.locator("button", has_text=re.compile(r"edit\s*default\s*percentage", re.I)),
+        page.locator("button", has_text=re.compile(r"edit\s*default", re.I)),
+        page.get_by_text(re.compile(r"edit\s*default\s*percentage", re.I)),
+    ]
+    last_err = None
+    for loc in candidates:
+        try:
+            target = loc.first
+            if target.count() < 1:
+                continue
+            target.scroll_into_view_if_needed(timeout=5000)
+            time.sleep(0.2)
+            try:
+                target.click(timeout=8000)
+            except Exception:
+                target.click(timeout=8000, force=True)
+            _dialog(page)
+            return
+        except Exception as e:
+            last_err = e
+            continue
+    # JS fallback — click first matching button text
+    clicked = page.evaluate(
+        """() => {
+          const re = /edit\\s*default/i;
+          const nodes = [...document.querySelectorAll('button, a, [role="button"]')];
+          const el = nodes.find(n => re.test((n.innerText || n.textContent || '').trim()));
+          if (!el) return false;
+          el.scrollIntoView({block:'center'});
+          el.click();
+          return true;
+        }"""
+    )
+    if clicked:
+        _dialog(page)
+        return
+    raise AssertionError(
+        "Fee edit default FAILED: cannot click Edit default percentage "
+        f"({last_err!r}) (report to dev / Asana)"
+    )
 
 
 def _fill_named(dlg, name: str, value: str) -> None:
@@ -40,6 +90,42 @@ def _fill_named(dlg, name: str, value: str) -> None:
         }""",
         value,
     )
+
+
+def _dialog_save(page: Page, dlg=None) -> None:
+    """Click dialog Save (Playwright role click is flaky on this modal)."""
+    root = dlg if dlg is not None else page.locator("[role='dialog']").last
+    btn = root.locator("button[type='submit']").filter(
+        has_text=re.compile(r"^\s*save\s*$", re.I)
+    )
+    if btn.count() < 1:
+        btn = root.locator("button").filter(has_text=re.compile(r"^\s*save\s*$", re.I))
+    if btn.count() >= 1:
+        try:
+            btn.first.click(timeout=5000)
+            return
+        except Exception:
+            try:
+                btn.first.click(timeout=5000, force=True)
+                return
+            except Exception:
+                pass
+    clicked = page.evaluate(
+        """() => {
+          const dlg = [...document.querySelectorAll('[role=dialog]')].pop();
+          if (!dlg) return false;
+          const btn = [...dlg.querySelectorAll('button')].find(b =>
+            /^\\s*save\\s*$/i.test((b.innerText || '').trim())
+          );
+          if (!btn) return false;
+          btn.click();
+          return true;
+        }"""
+    )
+    if not clicked:
+        raise AssertionError(
+            "Fee dialog FAILED: Save button not clickable (report to dev / Asana)"
+        )
 
 
 def _open_platform_fee(page: Page) -> None:
@@ -114,7 +200,8 @@ def fee_view_detail(page: Page) -> None:
         raise AssertionError(
             "Fee detail FAILED: missing Default percentage (report to dev / Asana)"
         )
-    if page.get_by_role("button", name="Edit default percentage").count() < 1:
+    edit_btn = page.locator("button", has_text=re.compile(r"edit\s*default", re.I))
+    if edit_btn.count() < 1:
         raise AssertionError(
             "Fee detail FAILED: Edit default percentage missing "
             "(report to dev / Asana)"
@@ -156,7 +243,7 @@ def fee_edit_default_restore(page: Page) -> None:
     temp = "5.1" if abs(base - 5.1) > 0.01 else "5.2"
     orig_min = "3"
 
-    page.get_by_role("button", name="Edit default percentage").click()
+    _click_edit_default(page)
     dlg = _dialog(page)
     time.sleep(0.4)
     # capture original min from dialog
@@ -165,7 +252,7 @@ def fee_edit_default_restore(page: Page) -> None:
         orig_min = min_val
     _fill_named(dlg, "feeAmount", temp)
     _fill_named(dlg, "minimumFee", orig_min)
-    dlg.get_by_role("button", name="Save").click()
+    _dialog_save(page, dlg)
     temp_re = temp.replace(".", r"\.")
     page.wait_for_function(
         "(re) => new RegExp('Default percentage\\\\s*' + re + '\\\\s*%', 'i').test(document.body.innerText)",
@@ -181,12 +268,12 @@ def fee_edit_default_restore(page: Page) -> None:
     print(f"Test 4a : Default % updated {orig_pct} → {temp}")
 
     # restore
-    page.get_by_role("button", name="Edit default percentage").click()
+    _click_edit_default(page)
     dlg = _dialog(page)
     time.sleep(0.4)
     _fill_named(dlg, "feeAmount", orig_pct)
     _fill_named(dlg, "minimumFee", orig_min)
-    dlg.get_by_role("button", name="Save").click()
+    _dialog_save(page, dlg)
     orig_re = orig_pct.replace(".", r"\.")
     page.wait_for_function(
         "(re) => new RegExp('Default percentage\\\\s*' + re + '\\\\s*%', 'i').test(document.body.innerText)",
@@ -245,7 +332,7 @@ def fee_override_outlet_restore(page: Page) -> None:
     min_val = dlg.locator('input[name="minimumFee"]').first.input_value() or "3"
     _fill_named(dlg, "feeAmount", temp)
     _fill_named(dlg, "minimumFee", min_val)
-    dlg.get_by_role("button", name="Save").click()
+    _dialog_save(page, dlg)
     time.sleep(2)
     # re-find row and assert temp %
     page.wait_for_timeout(500)
@@ -267,7 +354,7 @@ def fee_override_outlet_restore(page: Page) -> None:
     time.sleep(0.4)
     _fill_named(dlg, "feeAmount", orig)
     _fill_named(dlg, "minimumFee", min_val)
-    dlg.get_by_role("button", name="Save").click()
+    _dialog_save(page, dlg)
     time.sleep(2)
     row3 = page.locator("table tbody tr", has_text=outlet_name[:20]).first
     row_txt = row3.inner_text() if row3.count() else ""
