@@ -21,6 +21,9 @@ __pycache__/
 !.cursor/rules/
 .cursor/rules/*
 !.cursor/rules/*.mdc
+!.cursor/skills/
+.cursor/skills/**
+!.cursor/skills/**/SKILL.md
 .idea/
 .vscode/
 reports/**

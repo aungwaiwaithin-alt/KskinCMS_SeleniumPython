@@ -86,10 +86,14 @@ Hard rule: confidence ≠ “a test exists”. Never claim `trusted` with open c
 Use **`/QA_ConfidenceWorkflow`**.  
 Read `prompts/agent_guardrails.md` before changing mappings or answering skip-manual questions.
 
-Cursor loads personal skills from `~/.cursor/skills/`, which no repo tracks. Restore with:
+Cursor loads skills from `~/.cursor/skills/` **or** this project's `.cursor/skills/`.
+
+Preferred (no Terminal install): open this CMS repo in Cursor — skill is at `.cursor/skills/QA_ConfidenceWorkflow/SKILL.md`.
+
+Fallback (user-global):
 
 ```bash
 bash qa-confidence/skill/install.sh
 ```
 
-Then reload Cursor so the slash command appears.
+Then start a **new** chat (or reload the window) so `/QA_ConfidenceWorkflow` appears.
