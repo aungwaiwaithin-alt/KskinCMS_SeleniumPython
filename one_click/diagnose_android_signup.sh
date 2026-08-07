@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Dump Android signup test + page bits for debugging early FAIL (only ~4 steps).
-# Run on Mac, then paste the output:
+# Dump Android signup test + page bits for debugging early FAIL.
+# Uses grep (rg not required on Mac).
 #   bash ~/AquaProjects/KskinCMS/one_click/diagnose_android_signup.sh
 set -euo pipefail
 
 APPIUM_PY="${APPIUM_PY:-$HOME/AquaProjects/MCP_Appium_Server/python}"
 OUT="${1:-/tmp/kskin_android_signup_diagnose.txt}"
+Grep() { grep -nE "$@" 2>/dev/null || true; }
 
 {
   echo "=== $(date) ==="
@@ -15,41 +16,46 @@ OUT="${1:-/tmp/kskin_android_signup_diagnose.txt}"
   ls -la "$APPIUM_PY/pages" | head -40
   echo ""
   echo "=== helpers/dynamic_data signup_email ==="
-  "$APPIUM_PY/.venv/bin/python" - <<PY
+  if [[ -x "$APPIUM_PY/.venv/bin/python" ]]; then
+    "$APPIUM_PY/.venv/bin/python" - <<PY
 import sys
 sys.path.insert(0, "$APPIUM_PY")
 from helpers.dynamic_data import next_android_run_values
 v = next_android_run_values()
 print("signup_email=", getattr(v, "signup_email", None))
-print("email=", getattr(v, "email", None))
-print("attrs sample=", [a for a in dir(v) if not a.startswith("_")][:40])
+print("has enter_otp on page?", end=" ")
+try:
+    from pages.signup_login_android_page import SignupLoginAndroidPage
+    print(hasattr(SignupLoginAndroidPage, "enter_otp"))
+except Exception as e:
+    print("import fail", e)
 PY
+  fi
   echo ""
-  echo "=== test: email / EMPTY / step lines ==="
-  rg -n "email|EMPTY|step|signup_email|enter_|type_|Next|valid" \
-    "$APPIUM_PY/tests/test_signup_login_android.py" | head -80 || true
+  echo "=== test methods called (page.*) ==="
+  Grep "\\.(enter_|tap_|click_|type_|fill_|select_|allow_)" "$APPIUM_PY/tests/test_signup_login_android.py" | head -80
   echo ""
-  echo "=== test file (first 220 lines) ==="
-  sed -n '1,220p' "$APPIUM_PY/tests/test_signup_login_android.py"
+  echo "=== test: email / OTP / EMPTY lines ==="
+  Grep "email|OTP|otp|EMPTY|enter_otp|Next|valid" "$APPIUM_PY/tests/test_signup_login_android.py" | head -80
   echo ""
-  echo "=== signup_login_android_page.py (email-related) ==="
-  rg -n "email|Email|NEXT|Next|send_keys|set_value|clear" \
-    "$APPIUM_PY/pages/signup_login_android_page.py" | head -60 || true
+  echo "=== page defs ==="
+  Grep "^[[:space:]]*def " "$APPIUM_PY/pages/signup_login_android_page.py" | head -80
   echo ""
-  echo "=== signup_login_android_page.py full (cap 250 lines) ==="
-  sed -n '1,250p' "$APPIUM_PY/pages/signup_login_android_page.py"
+  echo "=== has enter_otp? ==="
+  Grep "def enter_otp" "$APPIUM_PY/pages/signup_login_android_page.py"
   echo ""
-  echo "=== permissions_android_page.py ==="
-  sed -n '1,120p' "$APPIUM_PY/pages/permissions_android_page.py" 2>/dev/null || echo "(missing)"
+  echo "=== signup_login_android_page.py (first 200 lines) ==="
+  sed -n '1,200p' "$APPIUM_PY/pages/signup_login_android_page.py"
   echo ""
-  echo "=== latest report step summary ==="
+  echo "=== latest report errors ==="
   REPORT="$APPIUM_PY/reports/KS-SIGNUP-AND-001_signup_login.html"
   if [[ -f "$REPORT" ]]; then
     ls -la "$REPORT"
-    rg -n "TOTAL STEPS|PASSED|FAILED|EMPTY EMAIL|Overall|step" "$REPORT" | head -40 || true
+    Grep "TOTAL STEPS|Overall|enter_otp|ERROR:|FAILED|EMPTY EMAIL" "$REPORT" | head -40
   fi
 } | tee "$OUT"
 
 echo ""
 echo "Wrote $OUT"
-echo "Paste that file contents (or the terminal output) back to Cursor."
+echo "If enter_otp missing, run:"
+echo "  python3 ~/AquaProjects/KskinCMS/one_click/patch_android_signup_methods.py"
