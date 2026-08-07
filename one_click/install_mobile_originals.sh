@@ -27,12 +27,11 @@ mkdir -p "$DEST/.legacy" "$DEST/_originals"
 echo "CMS : $CMS"
 echo "DEST: $DEST"
 
-# Abort if repo originals are still the old 3.8 version
+# Abort if repo originals are still the old non-venv runner
 AND_SRC="$CMS/one_click/originals/run-android-signup-login.command"
-if ! grep -q 'pick_python' "$AND_SRC"; then
-  echo "ERROR: $AND_SRC is still the OLD python3.8 runner." >&2
-  echo "Your git pull did not update. Run:" >&2
-  echo "  cd \"$CMS\" && git stash -u && git pull" >&2
+if ! grep -q '\.venv' "$AND_SRC"; then
+  echo "ERROR: $AND_SRC is not the venv-based runner yet." >&2
+  echo "Run: cd \"$CMS\" && git stash -u && git pull" >&2
   exit 1
 fi
 

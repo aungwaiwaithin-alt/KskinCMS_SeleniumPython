@@ -8,60 +8,47 @@ APPIUM_PY="${APPIUM_PY:-$AQUA/MCP_Appium_Server/python}"
 REPORT_HTML="$APPIUM_PY/reports/KS-SIGNUP-AND-001_signup_login.html"
 PKG="${ANDROID_UAT_PACKAGE:-com.kskinfacial.customer.uat}"
 
-# Prefer a Python >=3.9 that already has pytest + appium (Homebrew 3.12 may be bare).
-pick_python() {
-  local c
-  for c in \
-    /usr/local/bin/python3 \
-    /usr/local/bin/python3.12 \
-    /usr/local/bin/python3.11 \
-    /Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12 \
-    /Library/Frameworks/Python.framework/Versions/3.11/bin/python3.11 \
-    /Library/Frameworks/Python.framework/Versions/3.10/bin/python3.10 \
-    /opt/homebrew/bin/python3.12 \
-    /opt/homebrew/bin/python3.11 \
-    /opt/homebrew/bin/python3
-  do
-    [[ -x "$c" ]] || continue
-    if "$c" - <<'PY' 2>/dev/null
-import sys
-assert sys.version_info >= (3, 9)
-import pytest
-import appium
-print(sys.executable)
-PY
-    then
-      return 0
-    fi
-  done
-  return 1
-}
-export PATH="/usr/local/bin:/opt/homebrew/bin:/Library/Frameworks/Python.framework/Versions/3.12/bin:$PATH"
+# Resolve a Python >=3.9, then use/create Appium project venv (avoids Homebrew PEP668).
+BASE_PY=""
+for c in \
+  /usr/local/bin/python3 \
+  /usr/local/bin/python3.12 \
+  /Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12 \
+  /Library/Frameworks/Python.framework/Versions/3.11/bin/python3.11 \
+  /opt/homebrew/bin/python3.12 \
+  /opt/homebrew/bin/python3
+do
+  [[ -x "$c" ]] || continue
+  if "$c" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)' 2>/dev/null; then
+    BASE_PY="$c"
+    break
+  fi
+done
+if [[ -z "$BASE_PY" ]]; then
+  echo "ERROR: Need Python >= 3.9"
+  read -r -p "Press Enter…" _; exit 1
+fi
+
+VENV_DIR="$APPIUM_PY/.venv"
+PYTHON_BIN="$VENV_DIR/bin/python"
+if [[ ! -x "$PYTHON_BIN" ]]; then
+  echo "Creating Appium venv at $VENV_DIR ..."
+  "$BASE_PY" -m venv "$VENV_DIR" || {
+    echo "ERROR: venv create failed with $BASE_PY"
+    read -r -p "Press Enter…" _; exit 1
+  }
+fi
+export PATH="$VENV_DIR/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"
 export PYTHONPATH="$APPIUM_PY${PYTHONPATH:+:$PYTHONPATH}"
 export PYTHONUNBUFFERED=1
 export JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home 2>/dev/null || true)}"
 
-PYTHON_BIN="$(pick_python | tail -1 || true)"
-if [[ -z "${PYTHON_BIN:-}" ]]; then
-  # Fall back to any >=3.9 and install deps
-  for c in /usr/local/bin/python3 /opt/homebrew/bin/python3.12 /opt/homebrew/bin/python3 \
-           /Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12; do
-    [[ -x "$c" ]] || continue
-    if "$c" -c 'import sys; raise SystemExit(0 if sys.version_info>=(3,9) else 1)'; then
-      PYTHON_BIN="$c"
-      break
-    fi
-  done
-fi
-if [[ -z "${PYTHON_BIN:-}" ]]; then
-  echo "ERROR: Need Python >= 3.9 with Appium/pytest."
-  read -r -p "Press Enter…" _; exit 1
-fi
 echo "Using Python: $PYTHON_BIN ($("$PYTHON_BIN" -V 2>&1))"
 if ! "$PYTHON_BIN" -c 'import pytest, appium' 2>/dev/null; then
-  echo "Installing pytest + Appium-Python-Client into this Python..."
-  "$PYTHON_BIN" -m pip install -U pip pytest Appium-Python-Client selenium || {
-    echo "ERROR: pip install failed for $PYTHON_BIN"
+  echo "Installing pytest + Appium-Python-Client into venv..."
+  "$PYTHON_BIN" -m pip install -U pip setuptools wheel
+  "$PYTHON_BIN" -m pip install -U pytest Appium-Python-Client selenium || {
+    echo "ERROR: pip install failed in venv"
     read -r -p "Press Enter…" _; exit 1
   }
 fi
