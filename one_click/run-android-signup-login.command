@@ -1,5 +1,6 @@
 #!/bin/bash
 # Mobile one-click: FRESH run + visible paced steps + open ONLY a new HTML report in Chrome.
+# Does NOT rewrite legacy scripts (sed broke heredocs/quotes → "unexpected end of file").
 set -uo pipefail
 cd "$(dirname "$0")" || exit 1
 
@@ -46,12 +47,28 @@ else
 fi
 
 REAL_PY="$(command -v python3.8 || command -v python3)"
+REAL_OPEN="$(command -v open || echo /usr/bin/open)"
 BIN_DIR="$SELF_DIR/.one_click_bin"
 mkdir -p "$BIN_DIR"
 
-# Shim python so pace patch runs for: script.py | -m | -c | stdin heredoc
+# --- Fake `open`: suppress HTML during the suite (we open Chrome ourselves after) ---
+cat > "$BIN_DIR/open" <<EOF
+#!/bin/bash
+for a in "\$@"; do
+  case "\$a" in
+    *.html|*.htm)
+      echo "[one-click] suppressed legacy open of \$a"
+      exit 0
+      ;;
+  esac
+done
+exec "$REAL_OPEN" "\$@"
+EOF
+chmod +x "$BIN_DIR/open"
+
+# --- Python shim: inject pace bootstrap for script / -m / -c / stdin ---
 cat > "$BIN_DIR/_kskin_py_shim.py" <<'PY'
-import os, sys, runpy, tempfile
+import os, sys, runpy
 
 def bootstrap():
     startup = os.environ.get("KSKIN_PACE_STARTUP") or ""
@@ -62,7 +79,6 @@ def bootstrap():
         parts.append(first)
     if appium:
         parts.append(appium)
-    # Keep existing path after our prefixes
     cur = os.environ.get("PYTHONPATH", "")
     if cur:
         parts.extend(p for p in cur.split(os.pathsep) if p and p not in parts)
@@ -77,7 +93,6 @@ def bootstrap():
 def main(argv):
     bootstrap()
     if not argv:
-        # stdin / heredoc
         code = sys.stdin.read()
         exec(compile(code, "<stdin>", "exec"), {"__name__": "__main__"})
         return 0
@@ -95,7 +110,6 @@ def main(argv):
         sys.argv = argv[1:]
         runpy.run_module(argv[1], run_name="__main__", alter_sys=True)
         return 0
-    # script path
     sys.argv = argv
     runpy.run_path(argv[0], run_name="__main__")
     return 0
@@ -122,6 +136,8 @@ exec "$REAL_PY" -u "$BIN_DIR/_kskin_py_shim.py" "\$@"
 EOF
 cp "$BIN_DIR/python3" "$BIN_DIR/python"
 chmod +x "$BIN_DIR/python3" "$BIN_DIR/python"
+
+# Put shims first on PATH
 export PATH="$BIN_DIR:$PATH"
 
 LEGACY="$SELF_DIR/${BASE}.legacy"
@@ -143,6 +159,7 @@ echo "  Appium reports: $APPIUM_PY/reports"
 echo "  Pace: ${STEP_PAUSE_SEC}s between steps — watch the device"
 echo "  Python shim: $BIN_DIR/python3"
 echo "  Pace startup: ${PACE_STARTUP:-NONE}"
+echo "  Legacy (unchanged): $LEGACY"
 echo "  Run id: $RUN_ID"
 echo "  Started: $(date)"
 echo "=============================================================="
@@ -153,11 +170,17 @@ if [[ ! -d "$APPIUM_PY" ]]; then
 fi
 if [[ ! -f "$LEGACY" ]]; then
   echo "ERROR: Missing legacy runner: $LEGACY" >&2
-  echo "Re-run installer from KskinCMS/one_click/" >&2
+  echo "Re-run: bash \"\$HOME/AquaProjects/KskinCMS/one_click/install_one_click_commands.sh\"" >&2
   read -r -p "Press Enter…" _; exit 1
 fi
-if [[ -z "$PACE_STARTUP" ]]; then
-  echo "WARNING: pace_startup.py not found — step banners may be missing" >&2
+
+# Quick syntax check — fail fast with a clear message
+if ! bash -n "$LEGACY" 2>/tmp/kskin_legacy_bashn.err; then
+  echo "ERROR: legacy script has a bash syntax error:" >&2
+  cat /tmp/kskin_legacy_bashn.err >&2
+  echo "Restore from Time Machine / re-copy your known-good .command into:" >&2
+  echo "  $SELF_DIR/.legacy/$BASE" >&2
+  read -r -p "Press Enter…" _; exit 2
 fi
 
 REPORT_DIR="$APPIUM_PY/reports"
@@ -165,35 +188,29 @@ mkdir -p "$REPORT_DIR"
 
 echo ""
 echo "Keep Terminal visible. STEP banners should appear while the device moves."
-echo "Chrome will open ONLY if a NEW report is written after this start time."
+echo "Chrome opens ONLY if a NEW report is written after this start time."
 echo ""
-sleep 2
+sleep 1
 
-# Sanitize legacy: don't let it open old HTML or block on nested keypress
-CLEAN="$SELF_DIR/.legacy_run_${BASE##*/}_${RUN_ID}.command"
-sed -E \
-  -e 's/open[[:space:]]+-a[[:space:]]+"Google Chrome"[[:space:]]+"[^"]+\.html"/echo "[one-click] skipped legacy Chrome open"/g' \
-  -e "s/open[[:space:]]+-a[[:space:]]+'Google Chrome'[[:space:]]+'[^']+\.html'/echo \"[one-click] skipped legacy Chrome open\"/g" \
-  -e 's/open[[:space:]]+"\$\{?[A-Za-z0-9_]*REPORT[^"]*"\}?/echo "[one-click] skipped legacy report open"/g' \
-  -e 's/open[[:space:]]+"[^"]+\.html"/echo "[one-click] skipped legacy html open"/g' \
-  -e "s/open[[:space:]]+'[^']+\.html'/echo \"[one-click] skipped legacy html open\"/g" \
-  -e 's/open[[:space:]]+\$[A-Za-z0-9_]*REPORT[A-Za-z0-9_]*/echo "[one-click] skipped legacy report open"/g' \
-  -e 's/read -n 1[^$]*/echo "[one-click] skip nested keypress"; true /g' \
-  -e 's/read -r -p "Press Enter[^"]*" *_?/echo "[one-click] skip nested Enter"; true /g' \
-  -e "s/read -r -p 'Press Enter[^']*' *_?/echo \"[one-click] skip nested Enter\"; true /g" \
-  "$LEGACY" > "$CLEAN" 2>/dev/null || cp "$LEGACY" "$CLEAN"
-chmod +x "$CLEAN"
-
-echo "[one-click] Launching suite (sanitized legacy)…"
+echo "[one-click] Launching legacy suite (no script rewrite)…"
 set +e
-bash "$CLEAN"
-ST=$?
+# Feed a few Enter keypresses so nested "Press any key" at end of legacy does not hang.
+# Use a coproc-style background yes only for stdin of the legacy bash.
+(
+  # small delay then newlines for trailing reads; suite itself should not need stdin
+  sleep 1
+  # keep feeding Enter slowly in case legacy waits at the end
+  for _i in 1 2 3 4 5 6 7 8 9 10; do
+    printf '\n'
+    sleep 2
+  done
+) | bash "$LEGACY"
+ST=${PIPESTATUS[1]:-$?}
 set -e
 
 pick_new_report() {
   local f mtime best="" best_m=0
   local files=()
-  # Prefer hint match
   while IFS= read -r f; do files+=("$f"); done < <(ls -1 "$REPORT_DIR"/*"${HINT}"*.html 2>/dev/null || true)
   if [[ ${#files[@]} -eq 0 ]]; then
     while IFS= read -r f; do files+=("$f"); done < <(ls -1 "$REPORT_DIR"/*.html 2>/dev/null || true)
@@ -214,21 +231,20 @@ if [[ -n "$NEW_REPORT" ]]; then
   echo "Fresh report: $NEW_REPORT"
   echo "Opening Google Chrome…"
   if [[ -d "/Applications/Google Chrome.app" ]]; then
-    open -a "Google Chrome" "$NEW_REPORT" || open "$NEW_REPORT" || true
+    "$REAL_OPEN" -a "Google Chrome" "$NEW_REPORT" || "$REAL_OPEN" "$NEW_REPORT" || true
   else
-    open "$NEW_REPORT" || true
+    "$REAL_OPEN" "$NEW_REPORT" || true
   fi
 else
   echo "==============================================================" >&2
   echo "ERROR: No NEW HTML report since this run started." >&2
-  echo "Not opening an old report (your earlier SS was dated 30 Jun)." >&2
-  echo "Scroll Terminal for Appium/Python errors. Device unlocked? Appium up?" >&2
+  echo "Not opening an old report." >&2
+  echo "Scroll Terminal for Appium/Python errors." >&2
   echo "==============================================================" >&2
   OLD="$(ls -t "$REPORT_DIR"/*.html 2>/dev/null | head -1 || true)"
   [[ -n "$OLD" ]] && echo "Newest OLD report (not opened): $OLD" >&2
 fi
 
-rm -f "$CLEAN" 2>/dev/null || true
 echo "Finished: $(date)  (exit $ST)"
 read -r -p "Press Enter to close…" _ || true
 exit "$ST"
