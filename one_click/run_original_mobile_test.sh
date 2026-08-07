@@ -122,9 +122,19 @@ if [[ -z "$PYBIN" ]]; then
   exit 1
 fi
 
-# ---------- gate: must have Claude methods; markers alone are a warning ----------
+# ---------- gate: must have Claude methods; strip leftover email-patch import ----------
 PAGE_FILE="$APPIUM_PY/pages/signup_login_android_page.py"
 if [[ "$TEST_REL" == *signup_login_android* ]] && [[ -f "$PAGE_FILE" ]]; then
+  if grep -q 'helpers.android_type\|KSKIN_EMAIL_TYPE_PATCH' "$PAGE_FILE" 2>/dev/null; then
+    echo "NOTE: stripping leftover KSKIN_EMAIL_TYPE_PATCH import (helpers.android_type was deleted)..."
+    CMS_STRIP=""
+    for c in "$AQUA/KskinCMS" "$AQUA/KskinCMS_SeleniumPython"; do
+      [[ -f "$c/one_click/strip_kskin_email_patch.py" ]] && CMS_STRIP="$c" && break
+    done
+    if [[ -n "$CMS_STRIP" ]]; then
+      python3 "$CMS_STRIP/one_click/strip_kskin_email_patch.py" || true
+    fi
+  fi
   if ! grep -q 'def tap_create_account' "$PAGE_FILE" 2>/dev/null; then
     echo "REFUSING: $PAGE_FILE has no tap_create_account — incomplete / wiped page."
     echo ""

@@ -90,6 +90,14 @@ fi
 # Remove junk helpers we invented (safe)
 rm -f "$HELPERS/android_type.py" "$HELPERS/patch_email_runtime.py" 2>/dev/null || true
 
+# If page still imports deleted android_type, strip that patch only
+if [[ -f "$APPIUM_PY/pages/signup_login_android_page.py" ]] && \
+   grep -q 'helpers.android_type\|KSKIN_EMAIL_TYPE_PATCH' \
+     "$APPIUM_PY/pages/signup_login_android_page.py" 2>/dev/null; then
+  echo "Stripping leftover KSKIN_EMAIL_TYPE_PATCH from signup page..."
+  python3 "$CMS/one_click/strip_kskin_email_patch.py" || true
+fi
+
 # Strip conftest email patch only (do not touch pages)
 if [[ -f "$APPIUM_PY/conftest.py" ]] && grep -q "KSKIN_EMAIL_TYPE_PATCH\|patch_email_runtime" "$APPIUM_PY/conftest.py"; then
   python3 - <<PY
