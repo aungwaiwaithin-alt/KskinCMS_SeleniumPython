@@ -62,8 +62,26 @@ def android_driver():
 
     pkg = config.ANDROID_PACKAGE
     if config.UNINSTALL_BEFORE_RUN:
+        if not config.ANDROID_APP_APK:
+            pytest.fail(
+                "ANDROID_UNINSTALL_BEFORE=1 requires ANDROID_APP_APK=/path/to/app.apk "
+                "(otherwise Appium cannot reinstall the package)."
+            )
         subprocess.run(["adb", "uninstall", pkg], check=False, capture_output=True)
         time.sleep(1.0)
+
+    # Confirm package is on device when we are not installing from APK
+    if not config.ANDROID_APP_APK:
+        check = subprocess.run(
+            ["adb", "shell", "pm", "path", pkg],
+            capture_output=True,
+            text=True,
+        )
+        if check.returncode != 0 or "package:" not in (check.stdout or ""):
+            pytest.fail(
+                f"Package {pkg} is not installed on the emulator/device.\n"
+                f"Install the UAT build first, or set ANDROID_APP_APK=/path/to.apk"
+            )
 
     activity = _resolve_activity(pkg)
     options = UiAutomator2Options()
@@ -73,14 +91,22 @@ def android_driver():
     options.udid = devices[0]
     options.app_package = pkg
     options.app_activity = activity
-    options.no_reset = False
+    options.no_reset = config.NO_RESET
     options.new_command_timeout = config.NEW_COMMAND_TIMEOUT
     options.set_capability("autoGrantPermissions", True)
     options.set_capability("ignoreHiddenApiPolicyError", True)
+    options.set_capability("dontStopAppOnReset", True)
+    if config.ANDROID_APP_APK:
+        options.app = config.ANDROID_APP_APK
 
     driver = webdriver.Remote(config.APPIUM_URL, options=options)
     driver.implicitly_wait(config.IMPLICIT_WAIT)
     try:
+        # Ensure app is foreground even when noReset kept it backgrounded
+        try:
+            driver.activate_app(pkg)
+        except Exception:
+            pass
         yield driver
     finally:
         try:
