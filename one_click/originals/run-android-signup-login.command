@@ -8,22 +8,40 @@ APPIUM_PY="${APPIUM_PY:-$AQUA/MCP_Appium_Server/python}"
 REPORT_HTML="$APPIUM_PY/reports/KS-SIGNUP-AND-001_signup_login.html"
 PKG="${ANDROID_UAT_PACKAGE:-com.kskinfacial.customer.uat}"
 
-# Appium Python client uses PEP585 hints (tuple[...]) — needs Python >= 3.9.
-# Do NOT prefer Framework 3.8 here (that caused: TypeError type is not subscriptable).
-export PATH="/opt/homebrew/bin:/usr/local/bin:/Library/Frameworks/Python.framework/Versions/3.12/bin:/Library/Frameworks/Python.framework/Versions/3.11/bin:/Library/Frameworks/Python.framework/Versions/3.10/bin:$PATH"
+# Appium Python client needs Python >= 3.9 (PEP585 tuple[...] hints).
+pick_python() {
+  local c
+  for c in \
+    /Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12 \
+    /Library/Frameworks/Python.framework/Versions/3.11/bin/python3.11 \
+    /Library/Frameworks/Python.framework/Versions/3.10/bin/python3.10 \
+    /usr/local/bin/python3.12 \
+    /usr/local/bin/python3.11 \
+    /opt/homebrew/bin/python3.12 \
+    /opt/homebrew/bin/python3.11 \
+    /usr/local/bin/python3 \
+    /opt/homebrew/bin/python3
+  do
+    [[ -x "$c" ]] || continue
+    if "$c" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)' 2>/dev/null; then
+      echo "$c"
+      return 0
+    fi
+  done
+  return 1
+}
+export PATH="/usr/local/bin:/opt/homebrew/bin:/Library/Frameworks/Python.framework/Versions/3.12/bin:$PATH"
 export PYTHONPATH="$APPIUM_PY${PYTHONPATH:+:$PYTHONPATH}"
 export PYTHONUNBUFFERED=1
 export JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home 2>/dev/null || true)}"
 
-PYTHON_BIN="$(command -v python3.12 || command -v python3.11 || command -v python3.10 || command -v python3.9 || command -v python3)"
-# Refuse 3.8 explicitly if that's all we found
-if "$PYTHON_BIN" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3,9) else 1)'; then
-  :
-else
-  echo "ERROR: Need Python >= 3.9 for current Appium client (found: $PYTHON_BIN)"
-  echo "Install/use python3.12, then re-run."
+PYTHON_BIN="$(pick_python || true)"
+if [[ -z "${PYTHON_BIN:-}" ]]; then
+  echo "ERROR: Need Python >= 3.9 for Appium client."
+  echo "Found default: $(command -v python3 || true) ($(python3 -V 2>/dev/null || true))"
   read -r -p "Press Enter…" _; exit 1
 fi
+echo "Using Python: $PYTHON_BIN ($("$PYTHON_BIN" -V 2>&1))"
 cd "$APPIUM_PY" || { echo "ERROR: missing $APPIUM_PY"; read -r -p "Press Enter…" _; exit 1; }
 
 echo "========================================"
