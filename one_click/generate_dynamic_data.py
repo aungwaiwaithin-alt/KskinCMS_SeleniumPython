@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Rebuild helpers/dynamic_data.py so attributes match signup tests.
+"""LAST-RESORT short-uniq fallback for helpers/dynamic_data.py.
 
-Fixes: AttributeError: SimpleNamespace has no attribute 'signup_email'
+Prefer: bash one_click/restore_claude_mobile_originals.sh
+This does NOT invent the long YYMMDDHHMMSS## email (that was a bad Cursor stub).
+Fallback email shape matches CMS style: qa.android.<6digits>@yopmail.com
 
-Run on Mac (overwrites stub):
+Run on Mac only when original is truly missing:
   FORCE=1 python3 ~/AquaProjects/KskinCMS/one_click/generate_dynamic_data.py
 """
 from __future__ import annotations
@@ -122,16 +124,22 @@ def main() -> int:
 
     if TARGET.exists() and not FORCE:
         src = TARGET.read_text(encoding="utf-8", errors="ignore")
+        # Never clobber a real Claude/original file
+        if "Auto-generated" not in src and "compat stub" not in src and "short uniq fallback" not in src:
+            if "next_android_run_values" in src:
+                print(f"REFUSING to overwrite original: {TARGET}")
+                print("Use restore_claude_mobile_originals.sh or Local History instead.")
+                return 0
         if "signup_email" in src and "next_android_run_values" in src:
             print(f"OK already has signup_email: {TARGET}")
-            print("Re-run with FORCE=1 to regenerate from tests.")
+            print("Re-run with FORCE=1 only if you intentionally want the short-uniq fallback.")
             return 0
 
     lines = [
-        '"""Auto-generated dynamic per-run signup values (compat stub).',
+        '"""Short-uniq fallback for per-run signup values (CMS-style 6 digits).',
         "",
-        "Includes signup_email / signup_password aliases expected by",
-        "test_signup_login_*.py. Replace with original when recovered.",
+        "NOT the long YYMMDDHHMMSS stub. Prefer Claude helpers/dynamic_data.py",
+        "from Local History / Appium git when available.",
         '"""',
         "from __future__ import annotations",
         "",
@@ -141,7 +149,8 @@ def main() -> int:
         "",
         "",
         "def _stamp() -> str:",
-        '    return time.strftime("%y%m%d%H%M%S") + f"{random.randint(10, 99)}"',
+        "    # CMS-style short suffix — never 14-digit datetime",
+        '    return str(int(time.time()))[-6:]',
         "",
         "",
         "def _bag(platform: str) -> SimpleNamespace:",

@@ -115,12 +115,13 @@ chmod +x "$DEST"/*.command "$DEST"/*.sh 2>/dev/null || true
 chmod +x "$CMS"/scripts/one_click_lib.sh "$CMS"/one_click/*.sh 2>/dev/null || true
 chmod +x "$CMS"/*/run_*_report.bash 2>/dev/null || true
 
-# If Appium helpers lost dynamic_data, restore/generate now
-if [[ ! -f "$AQUA/MCP_Appium_Server/python/helpers/dynamic_data.py" ]]; then
-  echo "NOTE: helpers.dynamic_data.py missing — restoring/generating…"
-  bash "$CMS/one_click/restore_appium_helpers.sh" || true
+# If Appium helpers lost dynamic_data OR still has long-email stub, restore Claude originals
+DD="$AQUA/MCP_Appium_Server/python/helpers/dynamic_data.py"
+if [[ ! -f "$DD" ]] || grep -qE 'Auto-generated|compat stub|strftime\("%y%m%d%H%M%S"\)' "$DD" 2>/dev/null; then
+  echo "NOTE: restoring Claude mobile originals (no long stub email)…"
+  bash "$CMS/one_click/restore_claude_mobile_originals.sh" || true
 fi
-cp -f "$CMS/one_click/generate_dynamic_data.py" "$DEST/generate_dynamic_data.py" 2>/dev/null || true
+# Do NOT copy generate_dynamic_data.py to Desktop as a "fix" — it overwrote originals before.
 
 # Make sure report bash scripts are executable in repo
 find "$CMS" -name 'run_*_report.bash' -exec chmod +x {} \;

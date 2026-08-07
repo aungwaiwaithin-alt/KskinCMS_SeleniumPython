@@ -64,6 +64,14 @@ fi
 # Remove ONLY our known junk helpers (safe)
 rm -f "$APPIUM_PY/helpers/android_type.py" \
       "$APPIUM_PY/helpers/patch_email_runtime.py" 2>/dev/null || true
+
+# Quarantine long-email stub if still present after checkout
+if [[ -f "$APPIUM_PY/helpers/dynamic_data.py" ]] && \
+   grep -qE 'Auto-generated|compat stub|strftime\("%y%m%d%H%M%S"\)' \
+     "$APPIUM_PY/helpers/dynamic_data.py" 2>/dev/null; then
+  echo "Long-email stub still present — running restore_claude_mobile_originals.sh ..."
+  bash "$CMS/one_click/restore_claude_mobile_originals.sh" || true
+fi
 # Do NOT delete permissions_android_page.py after git checkout — the suite imports it.
 # Only remove if it is clearly our stub AND git has a real copy to restore.
 if [[ -f "$APPIUM_PY/pages/permissions_android_page.py" ]] && \
@@ -141,6 +149,6 @@ echo "DONE."
 echo "Desktop commands:"
 ls -la "$DEST"/run-*-signup*.command "$DEST"/run-*-full*.command "$DEST"/run-e2e*.command 2>/dev/null || ls -la "$DEST"/run-*.command | head -20
 echo ""
-echo "Double-click a generated .command. If a page AttributeError appears,"
-echo "that means the PYTHON page object in Appium git is incomplete — fix pages in Aqua,"
-echo "do not re-run mass patch scripts."
+echo "If signup still uses a long qa.android.YYMMDD... email, run:"
+echo "  bash $CMS/one_click/restore_claude_mobile_originals.sh"
+echo "Do not re-run mass patch scripts."

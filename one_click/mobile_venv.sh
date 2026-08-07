@@ -58,33 +58,52 @@ if ! "$PYTHON_BIN" -c 'import pytest, appium' 2>/dev/null; then
 fi
 
 ensure_dynamic_data() {
+  # Never invent long YYMMDDHHMMSS emails. Prefer Claude restore script / existing file.
   if [[ -f "$APPIUM_PY/helpers/dynamic_data.py" ]]; then
+    if grep -qE 'Auto-generated|compat stub|strftime\("%y%m%d%H%M%S"\)' \
+         "$APPIUM_PY/helpers/dynamic_data.py" 2>/dev/null; then
+      echo "WARNING: long-email stub detected — run restore_claude_mobile_originals.sh"
+    fi
     return 0
   fi
-  echo "WARNING: helpers/dynamic_data.py missing — writing stub..."
+  local cms_restore=""
+  for c in "${AQUA_ROOT:-$HOME/AquaProjects}/KskinCMS" \
+           "${AQUA_ROOT:-$HOME/AquaProjects}/KskinCMS_SeleniumPython"; do
+    if [[ -f "$c/one_click/restore_claude_mobile_originals.sh" ]]; then
+      cms_restore="$c/one_click/restore_claude_mobile_originals.sh"
+      break
+    fi
+  done
+  if [[ -n "$cms_restore" ]]; then
+    echo "WARNING: helpers/dynamic_data.py missing — restoring Claude originals..."
+    bash "$cms_restore" || true
+    return 0
+  fi
+  echo "WARNING: helpers/dynamic_data.py missing — writing SHORT uniq fallback (6 digits)..."
   mkdir -p "$APPIUM_PY/helpers"
   cat > "$APPIUM_PY/helpers/dynamic_data.py" <<'PY'
+"""Short-uniq fallback — CMS-style 6 digits (not long datetime stub)."""
 from __future__ import annotations
 import random, time
 from types import SimpleNamespace
 
-def _stamp():
-    return time.strftime("%y%m%d%H%M%S") + f"{random.randint(10,99)}"
+def _uniq():
+    return str(int(time.time()))[-6:]
 
 def _bag(platform: str) -> SimpleNamespace:
-    s = _stamp()
+    s = _uniq()
     mobile = "9" + "".join(str(random.randint(0,9)) for _ in range(7))
+    email = f"qa.{platform}.{s}@yopmail.com"
     return SimpleNamespace(
-        email=f"qa.{platform}.{s}@yopmail.com",
-        password="P@ssw0rd",
-        first_name="QA",
-        last_name=f"{platform.title()}{s[-4:]}",
-        full_name=f"QA {platform.title()}{s[-4:]}",
-        name=f"QA {platform.title()}{s[-4:]}",
+        email=email, signup_email=email, login_email=email, user_email=email,
+        password="P@ssw0rd", signup_password="P@ssw0rd", login_password="P@ssw0rd",
+        first_name="QA", last_name=f"{platform.title()}{s[-4:]}",
+        full_name=f"QA {platform.title()}{s[-4:]}", name=f"QA {platform.title()}{s[-4:]}",
         mobile=mobile, phone=mobile, mobile_number=mobile,
-        otp="111111", gender="Female",
-        dob="01/01/1995", date_of_birth="01/01/1995",
-        platform=platform, run_id=s,
+        signup_mobile=mobile, signup_phone=mobile,
+        otp="111111", email_otp="111111", mobile_otp="111111", signup_otp="111111",
+        gender="Female", dob="01/01/1995", date_of_birth="01/01/1995",
+        platform=platform, run_id=s, stamp=s,
     )
 
 def next_android_run_values():
