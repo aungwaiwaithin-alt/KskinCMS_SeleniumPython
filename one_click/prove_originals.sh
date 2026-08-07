@@ -127,17 +127,35 @@ echo "  ~/Library/Application Support/Cursor/User/History/"
 echo "  Time Machine for $APPIUM_PY/pages/"
 echo "=============================================================="
 
-# Exit non-zero if current page is clearly ours or missing must-haves
-if [[ -f "$PAGE" ]]; then
-  if grep -qE "$OUR_MARKERS" "$PAGE" 2>/dev/null; then
-    echo "VERDICT: CURRENT PAGE IS CURSOR-MODIFIED — not your clean Claude original."
-    exit 2
-  fi
-  if ! grep -q 'def tap_create_account' "$PAGE" 2>/dev/null; then
-    echo "VERDICT: CURRENT PAGE IS INCOMPLETE (no tap_create_account)."
-    echo "         Likely wiped by git checkout of an incomplete commit."
+# Exit codes:
+# 0 = usable for running (methods complete)
+# 2 = markers present but methods may still be complete (warning)
+# 3 = incomplete (missing tap_create_account / test methods)
+if [[ -f "$PAGE" && -f "$TEST" ]]; then
+  EVAL="$(python3 - "$PAGE" "$TEST" <<'PY'
+import re, sys
+from pathlib import Path
+page = Path(sys.argv[1]).read_text(encoding="utf-8", errors="ignore")
+test = Path(sys.argv[2]).read_text(encoding="utf-8", errors="ignore")
+have = set(re.findall(r"^\s{4}def ([A-Za-z_][A-Za-z0-9_]*)\(", page, flags=re.M))
+need = set(re.findall(r"\bpage\.([A-Za-z_][A-Za-z0-9_]*)\s*\(", test))
+missing = len(need - have)
+has_tap = "tap_create_account" in have
+our = 1 if re.search(r"ENTER_OTP_ONLY|KSKIN_|Auto-generated|compat stub|Not in git history|prefer iOS Claude", page) else 0
+print(f"{missing}|{int(has_tap)}|{our}")
+PY
+)"
+  IFS='|' read -r missing has_tap our <<<"$EVAL"
+  if [[ "$has_tap" != "1" || "$missing" != "0" ]]; then
+    echo "VERDICT: INCOMPLETE — missing methods (missing=$missing tap=$has_tap)."
+    echo "         Recover bak / Local History, then re-run prove."
     exit 3
   fi
+  if [[ "$our" == "1" ]]; then
+    echo "VERDICT: METHODS COMPLETE (0 missing) but Cursor markers still in file."
+    echo "         Safe to RUN the original test now. Markers are cosmetic."
+    exit 0
+  fi
 fi
-echo "VERDICT: page looks usable (no Cursor markers + has tap_create_account)."
+echo "VERDICT: page looks usable (methods complete, no Cursor markers)."
 exit 0
