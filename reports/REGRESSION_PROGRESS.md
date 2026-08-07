@@ -61,3 +61,8 @@ Do **not** edit a notes-folder copy as the source of truth — edit here, then s
 1. Continue Playwright franchise/outlet order (next module after Fee Management).
 2. Seed more modules into `qa-confidence/scenarios/` after each green suite.
 3. Keep Products + Fee Management trusted only while their suites stay green.
+
+## One-click Mac runners
+- Pack: `one_click/` — install with `bash one_click/install_one_click_commands.sh`
+- CMS report bash scripts now: paced steps → always emit HTML → open **Google Chrome**
+- Mobile wrappers preserve your previous `.command` as `*.legacy` and add pace shim
