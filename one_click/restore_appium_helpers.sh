@@ -68,24 +68,25 @@ if [[ "$OK" -eq 0 ]]; then
   done
 fi
 
-# If zip did not help, generate a stub from signup tests
-if [[ ! -f "$HELPERS/dynamic_data.py" ]]; then
-  echo "Generating stub helpers/dynamic_data.py from signup tests..."
-  GEN="$CMS/one_click/generate_dynamic_data.py"
-  if [[ ! -f "$GEN" ]]; then
-    GEN="$(cd "$(dirname "$0")" && pwd)/generate_dynamic_data.py"
-  fi
-  python3 "$GEN"
+# Generate / upgrade stub so signup_email exists (FORCE if missing alias)
+GEN="$CMS/one_click/generate_dynamic_data.py"
+[[ -f "$GEN" ]] || GEN="$(cd "$(dirname "$0")" && pwd)/generate_dynamic_data.py"
+if [[ ! -f "$HELPERS/dynamic_data.py" ]] || ! grep -q 'signup_email' "$HELPERS/dynamic_data.py" 2>/dev/null; then
+  echo "Generating/upgrading helpers/dynamic_data.py (needs signup_email)..."
+  FORCE=1 python3 "$GEN"
 fi
 
 echo ""
 echo "Verify:"
-ls -la "$HELPERS"
-python3 - <<PY
+ls -la "$HELPERS/dynamic_data.py"
+PYBIN="$APPIUM/python/.venv/bin/python"
+[[ -x "$PYBIN" ]] || PYBIN="python3"
+"$PYBIN" - <<PY
 import sys
 sys.path.insert(0, "$APPIUM/python")
 from helpers.dynamic_data import next_android_run_values
 v = next_android_run_values()
-print("IMPORT OK:", getattr(v, "email", v))
+print("IMPORT OK signup_email:", getattr(v, "signup_email", None))
+print("IMPORT OK email:", getattr(v, "email", None))
 PY
 echo "Done. Now re-run the one-click signup command."
