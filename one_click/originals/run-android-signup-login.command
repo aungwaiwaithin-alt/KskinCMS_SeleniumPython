@@ -8,23 +8,29 @@ APPIUM_PY="${APPIUM_PY:-$AQUA/MCP_Appium_Server/python}"
 REPORT_HTML="$APPIUM_PY/reports/KS-SIGNUP-AND-001_signup_login.html"
 PKG="${ANDROID_UAT_PACKAGE:-com.kskinfacial.customer.uat}"
 
-# Appium Python client needs Python >= 3.9 (PEP585 tuple[...] hints).
+# Prefer a Python >=3.9 that already has pytest + appium (Homebrew 3.12 may be bare).
 pick_python() {
   local c
   for c in \
+    /usr/local/bin/python3 \
+    /usr/local/bin/python3.12 \
+    /usr/local/bin/python3.11 \
     /Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12 \
     /Library/Frameworks/Python.framework/Versions/3.11/bin/python3.11 \
     /Library/Frameworks/Python.framework/Versions/3.10/bin/python3.10 \
-    /usr/local/bin/python3.12 \
-    /usr/local/bin/python3.11 \
     /opt/homebrew/bin/python3.12 \
     /opt/homebrew/bin/python3.11 \
-    /usr/local/bin/python3 \
     /opt/homebrew/bin/python3
   do
     [[ -x "$c" ]] || continue
-    if "$c" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)' 2>/dev/null; then
-      echo "$c"
+    if "$c" - <<'PY' 2>/dev/null
+import sys
+assert sys.version_info >= (3, 9)
+import pytest
+import appium
+print(sys.executable)
+PY
+    then
       return 0
     fi
   done
@@ -35,13 +41,30 @@ export PYTHONPATH="$APPIUM_PY${PYTHONPATH:+:$PYTHONPATH}"
 export PYTHONUNBUFFERED=1
 export JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home 2>/dev/null || true)}"
 
-PYTHON_BIN="$(pick_python || true)"
+PYTHON_BIN="$(pick_python | tail -1 || true)"
 if [[ -z "${PYTHON_BIN:-}" ]]; then
-  echo "ERROR: Need Python >= 3.9 for Appium client."
-  echo "Found default: $(command -v python3 || true) ($(python3 -V 2>/dev/null || true))"
+  # Fall back to any >=3.9 and install deps
+  for c in /usr/local/bin/python3 /opt/homebrew/bin/python3.12 /opt/homebrew/bin/python3 \
+           /Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12; do
+    [[ -x "$c" ]] || continue
+    if "$c" -c 'import sys; raise SystemExit(0 if sys.version_info>=(3,9) else 1)'; then
+      PYTHON_BIN="$c"
+      break
+    fi
+  done
+fi
+if [[ -z "${PYTHON_BIN:-}" ]]; then
+  echo "ERROR: Need Python >= 3.9 with Appium/pytest."
   read -r -p "Press Enter…" _; exit 1
 fi
 echo "Using Python: $PYTHON_BIN ($("$PYTHON_BIN" -V 2>&1))"
+if ! "$PYTHON_BIN" -c 'import pytest, appium' 2>/dev/null; then
+  echo "Installing pytest + Appium-Python-Client into this Python..."
+  "$PYTHON_BIN" -m pip install -U pip pytest Appium-Python-Client selenium || {
+    echo "ERROR: pip install failed for $PYTHON_BIN"
+    read -r -p "Press Enter…" _; exit 1
+  }
+fi
 cd "$APPIUM_PY" || { echo "ERROR: missing $APPIUM_PY"; read -r -p "Press Enter…" _; exit 1; }
 
 echo "========================================"
