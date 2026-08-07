@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Install reconstructed ORIGINAL mobile runners as .legacy backups, then refresh wrappers.
-# Use when recover_mobile_legacy.sh says all backups are WRAPPER.
+# FORCE-install reconstructed mobile originals into Desktop one-click .legacy backups.
+# Always run AFTER: git stash -u && git pull
 set -euo pipefail
 
 AQUA="${AQUA_ROOT:-$HOME/AquaProjects}"
@@ -27,12 +27,25 @@ mkdir -p "$DEST/.legacy" "$DEST/_originals"
 echo "CMS : $CMS"
 echo "DEST: $DEST"
 
+# Abort if repo originals are still the old 3.8 version
+AND_SRC="$CMS/one_click/originals/run-android-signup-login.command"
+if ! grep -q 'pick_python' "$AND_SRC"; then
+  echo "ERROR: $AND_SRC is still the OLD python3.8 runner." >&2
+  echo "Your git pull did not update. Run:" >&2
+  echo "  cd \"$CMS\" && git stash -u && git pull" >&2
+  exit 1
+fi
+
 # Ensure dynamic_data exists
 if [[ ! -f "$AQUA/MCP_Appium_Server/python/helpers/dynamic_data.py" ]]; then
   echo "Creating helpers/dynamic_data.py stub..."
   python3 "$CMS/one_click/generate_dynamic_data.py" || true
 fi
 
+# Refresh wrappers first (may try to "keep" old backups)
+bash "$CMS/one_click/install_one_click_commands.sh" "$DEST"
+
+# FORCE originals LAST so they win over any "Kept good backup" logic
 install_one() {
   local name="$1"
   local src="$CMS/one_click/originals/$name"
@@ -41,15 +54,23 @@ install_one() {
   cp -f "$src" "$DEST/.legacy/$name"
   cp -f "$src" "$DEST/${name}.legacy"
   chmod +x "$DEST/_originals/$name" "$DEST/.legacy/$name" "$DEST/${name}.legacy"
-  echo "Installed original backup: $name"
+  echo "FORCE installed original: $name"
 }
 
 install_one "run-android-signup-login.command"
 install_one "run-ios-signup-login.command"
 
-# Refresh thin wrappers on top
-bash "$CMS/one_click/install_one_click_commands.sh" "$DEST"
+echo ""
+echo "Verify (must show pick_python / 3.12, NOT python3.8):"
+grep -E 'pick_python|python3\.8|3\.12' "$DEST/.legacy/run-android-signup-login.command" | head -10
+
+if grep -q 'pick_python' "$DEST/.legacy/run-android-signup-login.command"; then
+  echo "OK: Desktop .legacy is updated."
+else
+  echo "ERROR: Desktop .legacy still old — stop and check paths." >&2
+  exit 1
+fi
 
 echo ""
 echo "Done. Double-click run-android-signup-login.command"
-echo "It should now call the reconstructed original under .legacy/"
+echo "Header must say: Using Python: .../python3.12"
