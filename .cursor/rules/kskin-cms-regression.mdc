@@ -1,0 +1,27 @@
+---
+description: Kskin CMS staging regression — one module, actions-first, QA confidence
+globs:
+alwaysApply: true
+---
+
+# Kskin CMS regression
+
+- One Chrome/browser, one login; one module at a time.
+- ACTIVE↔INACTIVE only on QA-created items (Gift Card singleton exception).
+- Actions first: inspect listing/detail before automating; soft-fails → Failed.
+- View-only → listing/search/pagination only (no invented edit).
+
+## QA confidence (skip vs manual)
+
+**Canonical** framework under `qa-confidence/` in this CMS git repo — not another pass/fail suite.
+
+- Invoke with **`/QA_ConfidenceWorkflow`** (skill `QA_ConfidenceWorkflow`).
+- Restore slash command: `bash qa-confidence/skill/install.sh`
+- Optional notes mirror: `bash qa-confidence/skill/sync-to-notes.sh` (one-way; edit here first).
+- Read `qa-confidence/README.md` + `qa-confidence/prompts/agent_guardrails.md`.
+- Prefer cheapest CMS layer from `qa-confidence/trust_policy.yaml`.
+- Update scenario/case YAML after work; regenerate via `scripts/generate_qa_confidence_report.py`.
+- Never claim `trusted` with open caveats; `_example_*` is demo only.
+- Products are seeded as trusted (11 scenarios) while suite stays green.
+
+Handoff: `reports/REGRESSION_PROGRESS.md`.

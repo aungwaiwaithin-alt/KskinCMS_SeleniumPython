@@ -1,0 +1,27 @@
+# Manual-style cases for Fee Management — linked to scenarios/fee_management.yaml
+module: Fee Management
+cases:
+  - case_id: MC-FEE-001
+    title: Open Fee Management listing after login
+    scenario_id: SC-CMS-FEE-OPEN-001
+  - case_id: MC-FEE-002
+    title: Listing fee types + eye view actions
+    scenario_id: SC-CMS-FEE-LISTING-001
+  - case_id: MC-FEE-003
+    title: View Platform Fee detail
+    scenario_id: SC-CMS-FEE-VIEW-001
+  - case_id: MC-FEE-004
+    title: Required validation on empty Percentage / Minimum Fee
+    scenario_id: SC-CMS-FEE-VALIDATION-001
+  - case_id: MC-FEE-005
+    title: Edit default percentage and restore
+    scenario_id: SC-CMS-FEE-EDIT-DEFAULT-001
+  - case_id: MC-FEE-006
+    title: Edit Minimum Fee and restore
+    scenario_id: SC-CMS-FEE-MIN-FEE-001
+  - case_id: MC-FEE-007
+    title: Outlet override percentage and restore
+    scenario_id: SC-CMS-FEE-OVERRIDE-001
+  - case_id: MC-FEE-008
+    title: Detail rows per page
+    scenario_id: SC-CMS-FEE-ROWS-001

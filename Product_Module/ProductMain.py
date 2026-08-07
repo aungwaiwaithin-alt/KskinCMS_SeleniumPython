@@ -1,14 +1,11 @@
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-# if didn't add above three things, will show ' No module named 'KskinCMS'. error
-# >>That’s because KskinCMS is a subfolder, not a top-level module/package in your current Python path (sys.path).
-# When running FranchiseAccMain.py, Python is not treating the project root (i.e. SeleniumPython/)
-# as part of the module search path.
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 import pytest
 from KskinCMS.Product_Module.Product import *
+
 
 @pytest.fixture(scope="module")
 def setup():
@@ -20,57 +17,52 @@ def setup():
 def test_open_browser():
     open_browser()
 
+
 @pytest.mark.order(2)
 def test_products_search_and_filter():
     products_search_and_filter()
 
-@pytest.mark.order(3)
-def test_rows_per_page_actions():
-    rows_per_page_actions()
 
-@pytest.mark.order(4)
-@pytest.mark.skip(reason="Brittle create flow — skipped for listing regression")
+@pytest.mark.order(3)
 def test_add_new_product():
     add_new_product()
 
-@pytest.mark.order(5)
+
+@pytest.mark.order(4)
 def test_listing_active_inactive_action():
     listing_active_inactive_action()
 
-@pytest.mark.order(6)
+
+@pytest.mark.order(5)
 def test_listing_inactive_active_action():
     listing_inactive_active_action()
 
-#Having Issue so cannot test now
-# @pytest.mark.order(7)
-# def test_listing_duplicate_action():
-#     listing_duplicate_action()
 
-@pytest.mark.order(8)
-@pytest.mark.skip(reason="Brittle create/check flow — skipped for listing regression")
+@pytest.mark.order(6)
+def test_rows_per_page_actions():
+    rows_per_page_actions()
+
+
+@pytest.mark.order(7)
 def test_check_created_product_value():
     check_created_product_value()
 
-@pytest.mark.order(9)
-@pytest.mark.skip(reason="Brittle update flow — skipped for listing regression")
+
+@pytest.mark.order(8)
 def test_update_old_product():
     update_old_product()
 
+
+@pytest.mark.order(9)
+def test_product_required_validations():
+    product_required_validations()
+
+
 @pytest.mark.order(10)
-@pytest.mark.skip(reason="Brittle duplicate flow — skipped for listing regression")
-def test_check_duplicate_page_func():
-    check_duplicate_page_func()
+def test_product_blank_add_draft():
+    product_blank_add_draft()
 
 
-
-
-
-
-
-
-
-
-
-
-
-
+@pytest.mark.order(11)
+def test_product_update_stock_restore():
+    product_update_stock_restore()

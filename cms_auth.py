@@ -395,8 +395,13 @@ def duplicate_row_as_qa(driver, qa_name, name_field="name", name_col_index=0):
         js_fill(driver, fields[0], qa_name)
         time.sleep(0.5)
 
-    for label in ("Create", "Save", "Update", "Confirm"):
-        btns = driver.find_elements(By.XPATH, f"//button[contains(.,'{label}')]")
+    # Product uses Publish / Save as draft; others Create/Save/Update/Confirm
+    for label in ("Publish", "Create", "Save", "Update", "Confirm"):
+        btns = [
+            b
+            for b in driver.find_elements(By.XPATH, f"//button[contains(.,'{label}')]")
+            if b.is_displayed() and "draft" not in (b.text or "").lower()
+        ]
         if btns:
             driver.execute_script("arguments[0].click();", btns[-1])
             time.sleep(3)

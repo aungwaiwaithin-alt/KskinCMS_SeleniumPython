@@ -17,8 +17,20 @@ __pycache__/
 *.html
 !**/README.md
 .DS_Store
-.cursor/
+.cursor/*
+!.cursor/rules/
+.cursor/rules/*
+!.cursor/rules/*.mdc
+!.cursor/skills/
+.cursor/skills/**
+!.cursor/skills/**/SKILL.md
 .idea/
 .vscode/
-reports/
+reports/**
+!reports/REGRESSION_PROGRESS.md
 **/screenshots/
+
+# QA confidence generated output (authored YAML stays tracked)
+qa-confidence/generated/*
+!qa-confidence/generated/.gitkeep
+qa-confidence/generated/*.json

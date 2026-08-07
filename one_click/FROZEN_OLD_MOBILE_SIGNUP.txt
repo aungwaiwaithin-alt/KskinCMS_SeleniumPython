@@ -1,0 +1,2 @@
+# Frozen: do not use one_click/patch_*.py / add_*.py / restore_claude_* on the old
+# MCP_Appium_Server signup tree for new work. Use mobile_clean/ instead.
