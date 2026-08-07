@@ -35,8 +35,14 @@ fi
 
 # Try restore missing page objects
 if [[ ! -f "$APPIUM_PY/pages/permissions_android_page.py" ]]; then
-  echo "Attempting pages restore..."
+  echo "Attempting pages restore / stub generate..."
   bash "$CMS/one_click/restore_appium_pages.sh" || true
+fi
+
+if [[ -f "$APPIUM_PY/pages/permissions_android_page.py" ]]; then
+  echo "OK: permissions_android_page.py present"
+else
+  echo "WARNING: permissions_android_page.py still missing"
 fi
 
 echo ""

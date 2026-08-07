@@ -52,18 +52,24 @@ done
 
 if [[ "$OK" -eq 0 ]]; then
   echo ""
-  echo "Could not restore pages from zip."
-  echo "Paste this output and also run:"
-  echo "  ls -la \"$PAGES\""
-  echo "  ls -la \"$AQUA\"/*.zip 2>/dev/null"
-  echo "Or restore MCP_Appium_Server/python/pages from Time Machine / backup."
-  exit 1
+  echo "Zip has no permissions_android_page.py — generating compat stub from signup test..."
+  GEN="$AQUA/KskinCMS/one_click/generate_permissions_android_page.py"
+  [[ -f "$GEN" ]] || GEN="$(cd "$(dirname "$0")" && pwd)/generate_permissions_android_page.py"
+  if [[ -f "$GEN" ]]; then
+    python3 "$GEN"
+    OK=1
+  else
+    echo "Generator not found: $GEN"
+    exit 1
+  fi
 fi
 
 echo ""
 echo "Verify:"
-ls -la "$PAGES" | head -40
-python3 - <<PY
+ls -la "$PAGES/permissions_android_page.py"
+PYBIN="$APPIUM_PY/.venv/bin/python"
+[[ -x "$PYBIN" ]] || PYBIN="python3"
+"$PYBIN" - <<PY
 import sys
 sys.path.insert(0, "$APPIUM_PY")
 from pages.permissions_android_page import PermissionsAndroidPage
