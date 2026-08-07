@@ -75,9 +75,10 @@ cp -f "$CMS"/one_click/run-android-*.command "$DEST/" 2>/dev/null || true
 cp -f "$CMS"/one_click/run-e2e-*.command "$DEST/" 2>/dev/null || true
 cp -f "$CMS"/one_click/mobile_lib.sh "$DEST/" 2>/dev/null || true
 
-# Pace bootstrap only (do NOT install python_path_first helpers shadow — breaks pytest)
-cp -f "$CMS/one_click/pace_startup.py" "$DEST/pace_startup.py"
+# Pace file optional; remove helpers shadow that broke pytest (helpers.dynamic_data)
+cp -f "$CMS/one_click/pace_startup.py" "$DEST/pace_startup.py" 2>/dev/null || true
 rm -rf "$DEST/python_path_first"
+rm -rf "$DEST/.one_click_bin" 2>/dev/null || true
 
 # Refresh mobile wrappers from template (keep *.legacy intact)
 for name in "${MOBILE_NAMES[@]}"; do
