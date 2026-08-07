@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # FORCE-install reconstructed mobile originals into Desktop one-click .legacy backups.
 # Always run AFTER: git stash -u && git pull
+# Or simply: bash one_click/fix_pep668_now.sh
 set -euo pipefail
 
 AQUA="${AQUA_ROOT:-$HOME/AquaProjects}"
@@ -29,9 +30,10 @@ echo "DEST: $DEST"
 
 # Abort if repo originals are still the old non-venv runner
 AND_SRC="$CMS/one_click/originals/run-android-signup-login.command"
-if ! grep -q '\.venv' "$AND_SRC"; then
+if ! grep -q 'KSKIN_MOBILE_RUNNER_VENV' "$AND_SRC"; then
   echo "ERROR: $AND_SRC is not the venv-based runner yet." >&2
   echo "Run: cd \"$CMS\" && git stash -u && git pull" >&2
+  echo "Or:  bash \"$CMS/one_click/fix_pep668_now.sh\"" >&2
   exit 1
 fi
 
@@ -60,16 +62,31 @@ install_one "run-android-signup-login.command"
 install_one "run-ios-signup-login.command"
 
 echo ""
-echo "Verify (must show pick_python / 3.12, NOT python3.8):"
-grep -E 'pick_python|python3\.8|3\.12' "$DEST/.legacy/run-android-signup-login.command" | head -10
+echo "Verify (must show KSKIN_MOBILE_RUNNER_VENV + .venv):"
+grep -E 'KSKIN_MOBILE_RUNNER_VENV|\.venv' "$DEST/.legacy/run-android-signup-login.command" | head -10
 
-if grep -q 'pick_python' "$DEST/.legacy/run-android-signup-login.command"; then
-  echo "OK: Desktop .legacy is updated."
+if grep -q 'KSKIN_MOBILE_RUNNER_VENV' "$DEST/.legacy/run-android-signup-login.command"; then
+  echo "OK: Desktop .legacy is updated (venv-based)."
 else
   echo "ERROR: Desktop .legacy still old — stop and check paths." >&2
   exit 1
 fi
 
+# Confirm wrapper prefers CMS originals
+if grep -q 'Prefer CMS repo venv' "$DEST/run-android-signup-login.command" \
+  || grep -q 'has_venv_runner' "$DEST/run-android-signup-login.command"; then
+  echo "OK: Desktop wrapper prefers CMS venv runner (won't stick on stale .legacy)."
+else
+  echo "WARNING: wrapper may be stale — re-copy template."
+  cp -f "$CMS/one_click/run-mobile-legacy-wrapper.command.template" \
+    "$DEST/run-android-signup-login.command"
+  cp -f "$CMS/one_click/run-mobile-legacy-wrapper.command.template" \
+    "$DEST/run-ios-signup-login.command"
+  chmod +x "$DEST/run-android-signup-login.command" "$DEST/run-ios-signup-login.command"
+fi
+
 echo ""
 echo "Done. Double-click run-android-signup-login.command"
-echo "Header must say: Using Python: .../python3.12"
+echo "Header MUST show: KSKIN_MOBILE_RUNNER_VENV=android-signup"
+echo "Using Python: .../MCP_Appium_Server/python/.venv/bin/python"
+echo "First run may create the venv and pip install (can take a minute)."

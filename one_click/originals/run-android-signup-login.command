@@ -1,5 +1,5 @@
 #!/bin/bash
-# Reconstructed original-style Android Sign-Up + Login one-click runner.
+# KSKIN_MOBILE_RUNNER_VENV — Android Sign-Up + Login (project .venv, never Homebrew pip).
 # Based on your prior working Terminal flow (Appium → device → pytest → HTML report).
 set -uo pipefail
 
@@ -7,6 +7,8 @@ AQUA="${AQUA_ROOT:-$HOME/AquaProjects}"
 APPIUM_PY="${APPIUM_PY:-$AQUA/MCP_Appium_Server/python}"
 REPORT_HTML="$APPIUM_PY/reports/KS-SIGNUP-AND-001_signup_login.html"
 PKG="${ANDROID_UAT_PACKAGE:-com.kskinfacial.customer.uat}"
+
+echo "KSKIN_MOBILE_RUNNER_VENV=android-signup"
 
 # Resolve a Python >=3.9, then use/create Appium project venv (avoids Homebrew PEP668).
 BASE_PY=""
@@ -32,12 +34,20 @@ fi
 VENV_DIR="$APPIUM_PY/.venv"
 PYTHON_BIN="$VENV_DIR/bin/python"
 if [[ ! -x "$PYTHON_BIN" ]]; then
-  echo "Creating Appium venv at $VENV_DIR ..."
+  echo "Creating Appium venv at $VENV_DIR (base=$BASE_PY)..."
   "$BASE_PY" -m venv "$VENV_DIR" || {
     echo "ERROR: venv create failed with $BASE_PY"
     read -r -p "Press Enter…" _; exit 1
   }
 fi
+# Never pip-install into Homebrew/system Python — only into this venv.
+case "$PYTHON_BIN" in
+  */.venv/bin/python*) ;;
+  *)
+    echo "ERROR: refusing non-venv python: $PYTHON_BIN"
+    read -r -p "Press Enter…" _; exit 1
+    ;;
+esac
 export PATH="$VENV_DIR/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"
 export PYTHONPATH="$APPIUM_PY${PYTHONPATH:+:$PYTHONPATH}"
 export PYTHONUNBUFFERED=1
@@ -48,7 +58,7 @@ if ! "$PYTHON_BIN" -c 'import pytest, appium' 2>/dev/null; then
   echo "Installing pytest + Appium-Python-Client into venv..."
   "$PYTHON_BIN" -m pip install -U pip setuptools wheel
   "$PYTHON_BIN" -m pip install -U pytest Appium-Python-Client selenium || {
-    echo "ERROR: pip install failed in venv"
+    echo "ERROR: pip install failed in venv ($PYTHON_BIN)"
     read -r -p "Press Enter…" _; exit 1
   }
 fi
