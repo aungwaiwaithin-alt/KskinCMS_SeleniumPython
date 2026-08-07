@@ -75,18 +75,18 @@ cp -f "$CMS"/one_click/run-android-*.command "$DEST/" 2>/dev/null || true
 cp -f "$CMS"/one_click/run-e2e-*.command "$DEST/" 2>/dev/null || true
 cp -f "$CMS"/one_click/mobile_lib.sh "$DEST/" 2>/dev/null || true
 
-# Pace shim for mobile (helpers.step_report wrapper) + PYTHON shim bootstrap
-rm -rf "$DEST/python_path_first"
-cp -R "$CMS/one_click/python_path_first" "$DEST/python_path_first"
+# Pace bootstrap only (do NOT install python_path_first helpers shadow — breaks pytest)
 cp -f "$CMS/one_click/pace_startup.py" "$DEST/pace_startup.py"
-cp -f "$CMS/one_click/run-mobile-legacy-wrapper.command.template" \
-  "$DEST/run-mobile-legacy-wrapper.command.template" 2>/dev/null || true
+rm -rf "$DEST/python_path_first"
 
 # Refresh mobile wrappers from template (keep *.legacy intact)
 for name in "${MOBILE_NAMES[@]}"; do
   cp -f "$CMS/one_click/run-mobile-legacy-wrapper.command.template" "$DEST/$name"
   chmod +x "$DEST/$name"
 done
+
+cp -f "$CMS/one_click/run-mobile-legacy-wrapper.command.template" \
+  "$DEST/run-mobile-legacy-wrapper.command.template" 2>/dev/null || true
 
 chmod +x "$DEST"/*.command "$CMS"/scripts/one_click_lib.sh \
   "$CMS"/*/run_*_report.bash 2>/dev/null || true

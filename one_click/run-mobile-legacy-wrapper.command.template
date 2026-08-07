@@ -1,6 +1,6 @@
 #!/bin/bash
-# Mobile one-click: FRESH run + visible paced steps + open ONLY a new HTML report in Chrome.
-# Does NOT rewrite legacy scripts (sed broke heredocs/quotes → "unexpected end of file").
+# Mobile one-click: FRESH run + paced steps + open ONLY a new HTML report.
+# Critical: do NOT put a fake helpers/ package first on PYTHONPATH (breaks pytest collection).
 set -uo pipefail
 cd "$(dirname "$0")" || exit 1
 
@@ -10,15 +10,6 @@ SELF_DIR="$(pwd)"
 BASE="$(basename "$0")"
 RUN_ID="$(date +%Y%m%d_%H%M%S)"
 START_EPOCH="$(date +%s)"
-
-PACE_FIRST=""
-for d in \
-  "$SELF_DIR/python_path_first" \
-  "$AQUA/KskinCMS/one_click/python_path_first" \
-  "$HOME/AquaProjects/KskinCMS/one_click/python_path_first"
-do
-  [[ -f "$d/helpers/step_report.py" ]] && { PACE_FIRST="$d"; break; }
-done
 
 PACE_STARTUP=""
 for f in \
@@ -38,20 +29,19 @@ export ONE_CLICK_KEEP_OPEN=1
 export PYTHONUNBUFFERED=1
 export PYTHONDONTWRITEBYTECODE=1
 export KSKIN_PACE_STARTUP="${PACE_STARTUP}"
-export KSKIN_PACE_FIRST="${PACE_FIRST}"
 
-if [[ -n "$PACE_FIRST" ]]; then
-  export PYTHONPATH="$PACE_FIRST:$APPIUM_PY:${PYTHONPATH:-}"
-else
-  export PYTHONPATH="$APPIUM_PY:${PYTHONPATH:-}"
-fi
+# ONLY Appium python on PYTHONPATH — never a shadow helpers package
+export PYTHONPATH="$APPIUM_PY${PYTHONPATH:+:$PYTHONPATH}"
 
 REAL_PY="$(command -v python3.8 || command -v python3)"
 REAL_OPEN="$(command -v open || echo /usr/bin/open)"
+# Prefer real pytest module via our shim; keep absolute path to real pytest if needed
+REAL_PYTEST="$(command -v pytest || true)"
+
 BIN_DIR="$SELF_DIR/.one_click_bin"
 mkdir -p "$BIN_DIR"
 
-# --- Fake `open`: suppress HTML during the suite (we open Chrome ourselves after) ---
+# Fake `open`: suppress HTML during suite (we open Chrome after if fresh)
 cat > "$BIN_DIR/open" <<EOF
 #!/bin/bash
 for a in "\$@"; do
@@ -66,23 +56,28 @@ exec "$REAL_OPEN" "\$@"
 EOF
 chmod +x "$BIN_DIR/open"
 
-# --- Python shim: inject pace bootstrap for script / -m / -c / stdin ---
 cat > "$BIN_DIR/_kskin_py_shim.py" <<'PY'
 import os, sys, runpy
 
 def bootstrap():
     startup = os.environ.get("KSKIN_PACE_STARTUP") or ""
-    first = os.environ.get("KSKIN_PACE_FIRST") or ""
     appium = os.environ.get("APPIUM_PY") or ""
     parts = []
-    if first:
-        parts.append(first)
     if appium:
         parts.append(appium)
     cur = os.environ.get("PYTHONPATH", "")
     if cur:
         parts.extend(p for p in cur.split(os.pathsep) if p and p not in parts)
+    # Drop any accidental one_click python_path_first helpers shadow
+    parts = [p for p in parts if "python_path_first" not in p.replace("\\", "/")]
     os.environ["PYTHONPATH"] = os.pathsep.join(parts)
+    # Rebuild sys.path prefixes
+    for p in list(sys.path):
+        if p and "python_path_first" in p.replace("\\", "/"):
+            try:
+                sys.path.remove(p)
+            except ValueError:
+                pass
     for p in reversed(parts):
         if p and p not in sys.path:
             sys.path.insert(0, p)
@@ -107,8 +102,9 @@ def main(argv):
         exec(compile(argv[1], "<string>", "exec"), {"__name__": "__main__"})
         return 0
     if argv[0] == "-m":
+        mod = argv[1]
         sys.argv = argv[1:]
-        runpy.run_module(argv[1], run_name="__main__", alter_sys=True)
+        runpy.run_module(mod, run_name="__main__", alter_sys=True)
         return 0
     sys.argv = argv
     runpy.run_path(argv[0], run_name="__main__")
@@ -128,16 +124,28 @@ PY
 cat > "$BIN_DIR/python3" <<EOF
 #!/bin/bash
 export PYTHONUNBUFFERED=1
-export PYTHONPATH="${PACE_FIRST}:$APPIUM_PY:\${PYTHONPATH:-}"
+export PYTHONPATH="$APPIUM_PY:\${PYTHONPATH:-}"
 export KSKIN_PACE_STARTUP="$PACE_STARTUP"
-export KSKIN_PACE_FIRST="$PACE_FIRST"
 export APPIUM_PY="$APPIUM_PY"
+# Strip shadow path if something re-added it
+export PYTHONPATH="\$(echo "\$PYTHONPATH" | tr ':' '\n' | grep -v python_path_first | paste -sd: -)"
 exec "$REAL_PY" -u "$BIN_DIR/_kskin_py_shim.py" "\$@"
 EOF
 cp "$BIN_DIR/python3" "$BIN_DIR/python"
 chmod +x "$BIN_DIR/python3" "$BIN_DIR/python"
 
-# Put shims first on PATH
+# Route bare `pytest` through our python so pace + path fixes apply
+cat > "$BIN_DIR/pytest" <<EOF
+#!/bin/bash
+export PYTHONUNBUFFERED=1
+export PYTHONPATH="$APPIUM_PY:\${PYTHONPATH:-}"
+export KSKIN_PACE_STARTUP="$PACE_STARTUP"
+export APPIUM_PY="$APPIUM_PY"
+export PYTHONPATH="\$(echo "\$PYTHONPATH" | tr ':' '\n' | grep -v python_path_first | paste -sd: -)"
+exec "$BIN_DIR/python3" -m pytest "\$@"
+EOF
+chmod +x "$BIN_DIR/pytest"
+
 export PATH="$BIN_DIR:$PATH"
 
 LEGACY="$SELF_DIR/${BASE}.legacy"
@@ -155,12 +163,12 @@ esac
 
 echo "=============================================================="
 echo "  Mobile one-click (FRESH RUN): $BASE"
-echo "  Appium reports: $APPIUM_PY/reports"
-echo "  Pace: ${STEP_PAUSE_SEC}s between steps — watch the device"
-echo "  Python shim: $BIN_DIR/python3"
-echo "  Pace startup: ${PACE_STARTUP:-NONE}"
-echo "  Legacy (unchanged): $LEGACY"
-echo "  Run id: $RUN_ID"
+echo "  Appium : $APPIUM_PY"
+echo "  Pace   : ${STEP_PAUSE_SEC}s between steps"
+echo "  Startup: ${PACE_STARTUP:-NONE}"
+echo "  Legacy : $LEGACY"
+echo "  Note   : PYTHONPATH has NO helpers shadow (pytest collection safe)"
+echo "  Run id : $RUN_ID"
 echo "  Started: $(date)"
 echo "=============================================================="
 
@@ -170,16 +178,11 @@ if [[ ! -d "$APPIUM_PY" ]]; then
 fi
 if [[ ! -f "$LEGACY" ]]; then
   echo "ERROR: Missing legacy runner: $LEGACY" >&2
-  echo "Re-run: bash \"\$HOME/AquaProjects/KskinCMS/one_click/install_one_click_commands.sh\"" >&2
   read -r -p "Press Enter…" _; exit 1
 fi
-
-# Quick syntax check — fail fast with a clear message
 if ! bash -n "$LEGACY" 2>/tmp/kskin_legacy_bashn.err; then
-  echo "ERROR: legacy script has a bash syntax error:" >&2
+  echo "ERROR: legacy bash syntax error:" >&2
   cat /tmp/kskin_legacy_bashn.err >&2
-  echo "Restore from Time Machine / re-copy your known-good .command into:" >&2
-  echo "  $SELF_DIR/.legacy/$BASE" >&2
   read -r -p "Press Enter…" _; exit 2
 fi
 
@@ -187,25 +190,21 @@ REPORT_DIR="$APPIUM_PY/reports"
 mkdir -p "$REPORT_DIR"
 
 echo ""
-echo "Keep Terminal visible. STEP banners should appear while the device moves."
-echo "Chrome opens ONLY if a NEW report is written after this start time."
+echo "Keep Terminal visible. Device should move; STEP banners after each step."
 echo ""
 sleep 1
 
-echo "[one-click] Launching legacy suite (no script rewrite)…"
+echo "[one-click] Launching legacy suite…"
 set +e
-# Feed a few Enter keypresses so nested "Press any key" at end of legacy does not hang.
-# Use a coproc-style background yes only for stdin of the legacy bash.
+# Auto-Enter for trailing "Press any key" without breaking pytest (pytest does not read stdin for tests)
 (
-  # small delay then newlines for trailing reads; suite itself should not need stdin
-  sleep 1
-  # keep feeding Enter slowly in case legacy waits at the end
-  for _i in 1 2 3 4 5 6 7 8 9 10; do
+  sleep 2
+  for _i in $(seq 1 30); do
     printf '\n'
-    sleep 2
+    sleep 3
   done
 ) | bash "$LEGACY"
-ST=${PIPESTATUS[1]:-$?}
+ST="${PIPESTATUS[1]:-$?}"
 set -e
 
 pick_new_report() {
@@ -238,11 +237,8 @@ if [[ -n "$NEW_REPORT" ]]; then
 else
   echo "==============================================================" >&2
   echo "ERROR: No NEW HTML report since this run started." >&2
-  echo "Not opening an old report." >&2
-  echo "Scroll Terminal for Appium/Python errors." >&2
+  echo "Scroll UP in Terminal for the real pytest/Appium error (collection/import)." >&2
   echo "==============================================================" >&2
-  OLD="$(ls -t "$REPORT_DIR"/*.html 2>/dev/null | head -1 || true)"
-  [[ -n "$OLD" ]] && echo "Newest OLD report (not opened): $OLD" >&2
 fi
 
 echo "Finished: $(date)  (exit $ST)"

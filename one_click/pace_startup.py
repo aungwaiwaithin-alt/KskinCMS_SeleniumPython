@@ -1,5 +1,4 @@
-# Force-visible pacing for Appium one-click runs.
-# Loaded via PYTHONSTARTUP so it still works when a legacy .command resets PYTHONPATH.
+# Injected before Appium/pytest runs (via python shim). Does NOT shadow helpers/.
 import atexit
 import os
 import sys
@@ -23,7 +22,6 @@ def _install_patch() -> None:
     try:
         import helpers.step_report as sr  # noqa: WPS433
     except Exception as exc:
-        _log(f"helpers.step_report not importable yet ({exc}); will retry on exit/hooks")
         return
 
     if getattr(sr.StepReporter.record_step, "_kskin_paced", False):
@@ -52,11 +50,9 @@ def _install_patch() -> None:
     _log(f"patched StepReporter.record_step (STEP_PAUSE_SEC={_pause()})")
 
 
-# Patch now (if helpers already importable) and again right before process exit
 _install_patch()
 atexit.register(_install_patch)
 
-# Wrap import so the first helpers.step_report import gets patched
 try:
     import builtins as _builtins_mod
 except ImportError:  # pragma: no cover
@@ -75,4 +71,4 @@ def _import(name, globals=None, locals=None, fromlist=(), level=0):  # noqa: A00
 
 
 _builtins_mod.__import__ = _import  # type: ignore[attr-defined]
-_log("pace bootstrap active — waiting for StepReporter…")
+_log("pace bootstrap active (no helpers shadow)")
