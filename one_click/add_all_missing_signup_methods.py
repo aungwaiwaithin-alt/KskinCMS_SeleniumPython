@@ -362,7 +362,21 @@ def main() -> int:
     for mark in (MARKER, "ENTER_OTP_ONLY", "KSKIN_GAP_FILL_ONCE"):
         if mark in src:
             src = re.sub(rf"\n    # --- {re.escape(mark)} ---[\s\S]*?(?=\n    # --- |\Z)", "\n", src)
-    for name in missing:
+
+    # Recompute missing AFTER strip (enter_otp was present, then stripped — must re-add)
+    have_after_strip = _defs(src)
+    missing = sorted(m for m in called if m not in have_after_strip and m not in inherited)
+    if "select_female" in missing and "select_gender" not in missing and "select_gender" not in have_after_strip:
+        missing = sorted(set(missing) | {"select_gender"})
+    # Hard-require enter_otp — test always calls it; never existed in git
+    if "enter_otp" not in have_after_strip and "enter_otp" not in inherited:
+        missing = sorted(set(missing) | {"enter_otp"})
+
+    print(f"After strip, still adding ({len(missing)}):")
+    for m in missing:
+        print(f"  + {m}")
+
+    for name in list(missing):
         while re.search(rf"\n    def {name}\(", src):
             src = re.sub(
                 rf"\n    def {name}\([\s\S]*?(?=\n    def |\nclass |\Z)",
