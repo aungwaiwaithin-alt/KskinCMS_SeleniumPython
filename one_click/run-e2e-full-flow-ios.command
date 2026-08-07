@@ -196,15 +196,9 @@ sleep 1
 
 echo "[one-click] Launching legacy suite…"
 set +e
-# Auto-Enter for trailing "Press any key" without breaking pytest (pytest does not read stdin for tests)
-(
-  sleep 2
-  for _i in $(seq 1 30); do
-    printf '\n'
-    sleep 3
-  done
-) | bash "$LEGACY"
-ST="${PIPESTATUS[1]:-$?}"
+# stdin = /dev/null so nested "Press Enter" cannot hang, and pytest is not fed junk
+bash "$LEGACY" </dev/null
+ST=$?
 set -e
 
 pick_new_report() {
