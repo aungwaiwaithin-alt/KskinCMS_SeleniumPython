@@ -21,10 +21,14 @@ echo "[1/4] git stash -u && git pull ..."
 git stash -u || true
 git pull --ff-only || git pull
 
-AND_SRC="$CMS/one_click/originals/run-android-signup-login.command"
-if ! grep -q 'KSKIN_MOBILE_RUNNER_VENV' "$AND_SRC"; then
-  echo "ERROR: pulled code still missing KSKIN_MOBILE_RUNNER_VENV marker." >&2
-  echo "Branch may be behind. Show: git log -1 --oneline" >&2
+AND_SRC="$CMS/one_click/originals/run-android-full-regression.command"
+if ! grep -q 'KSKIN_MOBILE_RUNNER_VENV' "$AND_SRC" 2>/dev/null; then
+  echo "ERROR: pulled code still missing full-regression venv runner." >&2
+  echo "Branch may be behind. Show: git log -1 --oneline && ls one_click/originals" >&2
+  exit 1
+fi
+if [[ ! -f "$CMS/one_click/mobile_venv.sh" ]]; then
+  echo "ERROR: missing one_click/mobile_venv.sh after pull." >&2
   exit 1
 fi
 
@@ -62,21 +66,21 @@ for d in "$HOME/Desktop/One click bash files" "$HOME/One click bash files"; do
   [[ -d "$d" ]] && DEST="$d" && break
 done
 echo ""
-echo "VERIFY Desktop runner (must print KSKIN_MOBILE_RUNNER_VENV):"
+echo "VERIFY Desktop runners (must print KSKIN_MOBILE_RUNNER_VENV):"
 if [[ -n "$DEST" ]]; then
-  grep -n 'KSKIN_MOBILE_RUNNER_VENV\|\.venv' "$DEST/.legacy/run-android-signup-login.command" | head -8 || true
-  grep -q 'Prefer CMS repo venv' "$DEST/run-android-signup-login.command" \
-    || grep -q 'KSKIN_MOBILE_RUNNER_VENV' "$DEST/run-android-signup-login.command" \
-    || grep -q 'thin wrapper' "$DEST/run-android-signup-login.command" \
-    || true
-  echo "Wrapper first lines:"
-  head -5 "$DEST/run-android-signup-login.command"
+  echo "--- signup ---"
+  grep -n 'KSKIN_MOBILE_RUNNER_VENV' "$DEST/.legacy/run-android-signup-login.command" | head -3 || true
+  echo "--- full regression ---"
+  grep -n 'KSKIN_MOBILE_RUNNER_VENV' "$DEST/.legacy/run-android-full-regression.command" | head -3 || true
+  echo "--- mobile_venv.sh ---"
+  ls -la "$DEST/mobile_venv.sh" "$CMS/one_click/mobile_venv.sh" 2>/dev/null || true
+  echo "Wrapper first lines (full regression):"
+  head -5 "$DEST/run-android-full-regression.command"
 fi
 
 echo ""
-echo "DONE. Double-click run-android-signup-login.command"
-echo "Header MUST show:"
-echo "  KSKIN_MOBILE_RUNNER_VENV=android-signup"
-echo "  Using Python: .../MCP_Appium_Server/python/.venv/bin/python"
-echo "If you still see /opt/homebrew/bin/python3.12 + externally-managed-environment,"
-echo "you did not run this script successfully — paste the VERIFY block above."
+echo "DONE. Double-click either:"
+echo "  run-android-signup-login.command"
+echo "  run-android-full-regression.command"
+echo "Header MUST show KSKIN_MOBILE_RUNNER_VENV=... and CMS must NOT be NOT FOUND."
+echo "Using Python: .../MCP_Appium_Server/python/.venv/bin/python"

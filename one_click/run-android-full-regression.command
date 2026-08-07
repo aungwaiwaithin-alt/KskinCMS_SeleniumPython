@@ -63,7 +63,10 @@ find_cms() {
     "$AQUA/kskincms_seleniumpython" \
     "$HOME/AquaProjects/KskinCMS"
   do
-    if [[ -f "$c/one_click/originals/$CORE_NAME" ]]; then
+    # CMS exists if pack is present — do NOT require this CORE_NAME original
+    if [[ -f "$c/one_click/mobile_venv.sh" ]] \
+      || [[ -d "$c/one_click/originals" ]] \
+      || [[ -f "$c/scripts/one_click_lib.sh" ]]; then
       echo "$c"
       return 0
     fi

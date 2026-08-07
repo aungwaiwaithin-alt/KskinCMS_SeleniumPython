@@ -63,7 +63,10 @@ find_cms() {
     "$AQUA/kskincms_seleniumpython" \
     "$HOME/AquaProjects/KskinCMS"
   do
-    if [[ -f "$c/one_click/originals/$CORE_NAME" ]]; then
+    # CMS exists if pack is present — do NOT require this CORE_NAME original
+    if [[ -f "$c/one_click/mobile_venv.sh" ]] \
+      || [[ -d "$c/one_click/originals" ]] \
+      || [[ -f "$c/scripts/one_click_lib.sh" ]]; then
       echo "$c"
       return 0
     fi
@@ -152,7 +155,12 @@ echo "  Started: $(date)"
 echo "=============================================================="
 
 if [[ -z "${LEGACY:-}" ]]; then
-  echo "ERROR: No runner found." >&2
+  echo "ERROR: No runner found for $CORE_NAME." >&2
+  echo "CMS: ${CMS:-NOT FOUND}" >&2
+  if [[ -n "${CMS:-}" ]]; then
+    echo "Looked for: $CMS/one_click/originals/$CORE_NAME" >&2
+    ls -la "$CMS/one_click/originals/" 2>/dev/null || true
+  fi
   echo "In Terminal:" >&2
   echo "  cd ~/AquaProjects/KskinCMS && git stash -u && git pull" >&2
   echo "  bash one_click/fix_pep668_now.sh" >&2
