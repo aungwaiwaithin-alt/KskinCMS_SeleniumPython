@@ -42,24 +42,12 @@ echo "=== 1) Inventory original tests ==="
 ls -la "$APPIUM_PY/tests"/test_*.py
 
 echo ""
-echo "=== 2) Restore pages/ from Appium git (best effort) ==="
-if [[ -d "$APPIUM/.git" ]]; then
-  cd "$APPIUM"
-  # Prefer the e2e commit if present; else leave pages as-is after user cleanup
-  if git cat-file -e 8f544632f1b717687dd5be6df13df353ca0827b8^{commit} 2>/dev/null; then
-    echo "Checking out pages/ + helpers/ from 8f544632 (July 29 e2e commit)..."
-    git checkout 8f544632f1b717687dd5be6df13df353ca0827b8 -- \
-      python/pages \
-      python/helpers \
-      python/conftest.py \
-      python/tests 2>/dev/null || \
-    git checkout 8f544632f1b717687dd5be6df13df353ca0827b8 -- python/pages python/conftest.py
-  else
-    echo "Commit 8f544632 not found — using current pages/ (you should have cleaned junk)."
-  fi
-else
-  echo "No .git in $APPIUM — skip checkout. Ensure pages/ is your clean original."
-fi
+echo "=== 2) DO NOT checkout pages/ from git ==="
+echo "Previous git checkout wiped Claude page objects (no tap_create_account)."
+echo "Pages are left as-is. Recover from backups / Local History instead:"
+echo "  bash $CMS/one_click/prove_originals.sh"
+echo "  bash $CMS/one_click/recover_claude_from_backups.sh"
+# Keep only junk-helper cleanup below — no git checkout of pages.
 
 # Remove ONLY our known junk helpers (safe)
 rm -f "$APPIUM_PY/helpers/android_type.py" \

@@ -122,6 +122,38 @@ if [[ -z "$PYBIN" ]]; then
   exit 1
 fi
 
+# ---------- refuse Cursor-modified / incomplete page ----------
+PAGE_FILE="$APPIUM_PY/pages/signup_login_android_page.py"
+if [[ "$TEST_REL" == *signup_login_android* ]] && [[ -f "$PAGE_FILE" ]]; then
+  BAD=0
+  if grep -qE 'ENTER_OTP_ONLY|KSKIN_|Auto-generated|compat stub|Not in git history — added' "$PAGE_FILE" 2>/dev/null; then
+    echo "REFUSING: $PAGE_FILE still has Cursor patch markers."
+    BAD=1
+  fi
+  if ! grep -q 'def tap_create_account' "$PAGE_FILE" 2>/dev/null; then
+    echo "REFUSING: $PAGE_FILE has no tap_create_account — this is the incomplete git copy,"
+    echo "          not your Claude page (Claude's page had that method)."
+    BAD=1
+  fi
+  if [[ "$BAD" -eq 1 ]]; then
+    echo ""
+    echo "Recover Claude's page first (do not invent methods):"
+    CMS_HINT=""
+    for c in "$AQUA/KskinCMS" "$AQUA/KskinCMS_SeleniumPython"; do
+      [[ -f "$c/one_click/prove_originals.sh" ]] && CMS_HINT="$c" && break
+    done
+    CMS_HINT="${CMS_HINT:-$AQUA/KskinCMS}"
+    echo "  bash $CMS_HINT/one_click/prove_originals.sh"
+    echo "  bash $CMS_HINT/one_click/recover_claude_from_backups.sh"
+    echo "  bash $CMS_HINT/one_click/recover_claude_from_backups.sh --apply"
+    echo ""
+    echo "Or Cursor Local History on:"
+    echo "  $PAGE_FILE"
+    echo "Pick a version that contains:  def tap_create_account"
+    exit 4
+  fi
+fi
+
 echo "=============================================================="
 echo "  Original Appium test run (no patching, no stubs)"
 echo "  Dir    : $APPIUM_PY"
