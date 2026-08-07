@@ -1,102 +1,91 @@
 #!/bin/bash
-# KSKIN_MOBILE_RUNNER_VENV — iOS full regression (project .venv, never Homebrew pip).
+# iOS Full Regression — one-click (Claude-style, self-contained)
+cd "$(dirname "$0")" 2>/dev/null || true
 set -uo pipefail
 
-AQUA="${AQUA_ROOT:-$HOME/AquaProjects}"
-APPIUM_PY="${APPIUM_PY:-$AQUA/MCP_Appium_Server/python}"
-REPORT_HTML="$APPIUM_PY/reports/KS-REGR-iOS-001_full_regression.html"
+APPIUM_PY="${APPIUM_PY:-$HOME/AquaProjects/MCP_Appium_Server/python}"
 BUNDLE="${IOS_UAT_BUNDLE:-enterprise.codigo.kskincustomer.uat}"
-
-echo "KSKIN_MOBILE_RUNNER_VENV=ios-full-regression"
-
-_COMMON=""
-for c in \
-  "$AQUA/KskinCMS/one_click/mobile_venv.sh" \
-  "$AQUA/KskinCMS_SeleniumPython/one_click/mobile_venv.sh" \
-  "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/one_click/mobile_venv.sh" \
-  "$(cd "$(dirname "$0")/.." 2>/dev/null && pwd)/mobile_venv.sh"
-do
-  [[ -f "$c" ]] && _COMMON="$c" && break
-done
-if [[ -z "$_COMMON" ]]; then
-  echo "ERROR: mobile_venv.sh not found. Pull + reinstall:"
-  echo "  cd ~/AquaProjects/KskinCMS && git stash -u && git pull && bash one_click/fix_pep668_now.sh"
-  read -r -p "Press Enter…" _; exit 1
-fi
-# shellcheck disable=SC1090
-source "$_COMMON"
-cd "$APPIUM_PY" || { echo "ERROR: missing $APPIUM_PY"; read -r -p "Press Enter…" _; exit 1; }
+REPORT="$APPIUM_PY/reports/KS-REGR-iOS-001_full_regression.html"
 
 echo "========================================"
 echo "  Kskin iOS — Full Regression"
-echo "  Dir: $APPIUM_PY"
-echo "  Python: $PYTHON_BIN"
+echo "  $APPIUM_PY"
 echo "  Bundle: $BUNDLE"
 echo "  Started: $(date)"
 echo "========================================"
 
-echo "[1/5] Starting Appium..."
-ensure_appium "$APPIUM_PY/reports/appium_ios_full.log"
+[[ -d "$APPIUM_PY" ]] || { echo "ERROR: missing $APPIUM_PY"; read -r -p "Press Enter…" _; exit 1; }
 
-echo "[2/5] Checking iOS simulator/device..."
-if command -v xcrun >/dev/null 2>&1; then
-  xcrun simctl list devices booted 2>/dev/null | head -20 || true
-else
-  echo "  WARNING: xcrun not found"
-fi
-
-echo "[3/5] Prep: ensure UAT app installed ($BUNDLE)"
-ensure_dynamic_data
-
-echo "[4/5] Discovering iOS pytest targets..."
-TARGETS=()
-for pref in \
-  "tests/test_full_regression_ios.py" \
-  "tests/test_ios_full_regression.py" \
-  "tests/test_regression_ios.py" \
-  "tests/ios/test_full_regression.py" \
-  "tests/ios"
-do
-  if [[ -e "$pref" ]]; then
-    TARGETS=("$pref")
-    break
-  fi
+BASE_PY=""
+for c in /usr/local/bin/python3 /opt/homebrew/bin/python3.12 /opt/homebrew/bin/python3; do
+  [[ -x "$c" ]] || continue
+  "$c" -c 'import sys; raise SystemExit(0 if sys.version_info>=(3,9) else 1)' 2>/dev/null && BASE_PY="$c" && break
 done
-if [[ ${#TARGETS[@]} -eq 0 ]]; then
-  while IFS= read -r f; do
-    TARGETS+=("$f")
-  done < <(find tests -type f -name '*.py' \( -iname '*ios*' -o -path '*/ios/*' \) ! -name '__init__.py' 2>/dev/null | sort)
-fi
-if [[ ${#TARGETS[@]} -eq 0 ]]; then
-  echo "ERROR: No iOS test files found under $APPIUM_PY/tests"
-  ls -la tests 2>/dev/null || true
-  read -r -p "Press Enter…" _; exit 1
-fi
-echo "  Targets:"
-for t in "${TARGETS[@]}"; do echo "    - $t"; done
+[[ -n "$BASE_PY" ]] || { echo "ERROR: need Python >= 3.9"; read -r -p "Press Enter…" _; exit 1; }
+VENV="$APPIUM_PY/.venv"
+PY="$VENV/bin/python"
+[[ -x "$PY" ]] || "$BASE_PY" -m venv "$VENV" || { echo "ERROR: venv failed"; read -r -p "Press Enter…" _; exit 1; }
+export PATH="$VENV/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"
+export PYTHONPATH="$APPIUM_PY"
+export PYTHONUNBUFFERED=1
+"$PY" -c 'import pytest,appium' 2>/dev/null || "$PY" -m pip install -U pytest Appium-Python-Client selenium
+echo "Python: $PY ($("$PY" -V))"
 
-mkdir -p "$APPIUM_PY/reports"
+cd "$APPIUM_PY" || exit 1
+mkdir -p reports
+
+echo "[1/4] Appium..."
+if ! curl -s http://127.0.0.1:4723/status >/dev/null 2>&1; then
+  if command -v appium >/dev/null 2>&1; then
+    nohup appium --port 4723 >reports/appium_ios_full.log 2>&1 &
+    for _ in $(seq 1 15); do curl -s http://127.0.0.1:4723/status >/dev/null 2>&1 && break; sleep 1; done
+  else
+    echo "  WARNING: appium not in PATH"
+  fi
+fi
+
+echo "[2/4] Simulator/device..."
+command -v xcrun >/dev/null && xcrun simctl list devices booted 2>/dev/null | head -10 || true
+
+echo "[3/4] Ensure UAT app installed ($BUNDLE)"
+
+TEST=""
+for cand in \
+  tests/test_full_regression_ios.py \
+  tests/test_ios_full_regression.py \
+  tests/test_regression_ios.py \
+  tests/ios/test_full_regression.py
+do
+  [[ -f "$cand" ]] && TEST="$cand" && break
+done
+
+echo "[4/4] pytest..."
 set +e
-"$PYTHON_BIN" -m pytest -s -vv "${TARGETS[@]}" --tb=short
-ST=$?
+if [[ -n "$TEST" ]]; then
+  echo "  $TEST"
+  "$PY" -m pytest -s -vv "$TEST" --tb=short
+  ST=$?
+else
+  mapfile -t FILES < <(find tests -type f -name '*.py' \( -iname '*ios*' -o -path '*/ios/*' \) ! -name '__init__.py' 2>/dev/null | sort)
+  if [[ ${#FILES[@]} -eq 0 ]]; then
+    echo "ERROR: no iOS tests under tests/"
+    ls -la tests 2>/dev/null || true
+    read -r -p "Press Enter…" _; exit 1
+  fi
+  printf '  %s\n' "${FILES[@]}"
+  "$PY" -m pytest -s -vv "${FILES[@]}" --tb=short
+  ST=$?
+fi
 set -e
 
-echo "[5/5] Opening report (if present)..."
-if [[ ! -f "$REPORT_HTML" ]]; then
-  NEWEST="$(ls -t "$APPIUM_PY"/reports/*REGR*iOS*.html \
-    "$APPIUM_PY"/reports/*REGR*ios*.html \
-    "$APPIUM_PY"/reports/*full*ios*.html \
-    "$APPIUM_PY"/reports/*.html 2>/dev/null | head -1 || true)"
-  [[ -n "$NEWEST" ]] && REPORT_HTML="$NEWEST"
-fi
-open_report "$REPORT_HTML" || true
-
-if [[ "$ST" -eq 0 ]]; then
-  echo "RESULT: PASS (exit code 0)"
+[[ -f "$REPORT" ]] || REPORT="$(ls -t reports/*REGR*iOS*.html reports/*REGR*ios*.html reports/*.html 2>/dev/null | head -1 || true)"
+if [[ -n "${REPORT:-}" && -f "$REPORT" ]]; then
+  echo "Report → Chrome: $REPORT"
+  open -a "Google Chrome" "$REPORT" 2>/dev/null || open "$REPORT" || true
 else
-  echo "RESULT: FAIL (exit code $ST)"
+  echo "No HTML report found"
 fi
-echo "Finished: $(date)"
-read -r -n 1 -s -p "Press any key to close this window..."
+echo "Finished: $(date)  exit=$ST"
+read -r -n 1 -s -p "Press any key to close..."
 echo
 exit "$ST"

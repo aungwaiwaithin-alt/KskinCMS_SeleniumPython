@@ -1,179 +1,75 @@
 #!/bin/bash
-# KSKIN_MOBILE_RUNNER_VENV — Android Sign-Up + Login (project .venv, never Homebrew pip).
-# Based on your prior working Terminal flow (Appium → device → pytest → HTML report).
+# Android Sign-Up + Login — one-click (Claude-style, self-contained)
+# Double-click from Finder. Uses Appium project .venv (Homebrew PEP668-safe).
+cd "$(dirname "$0")" 2>/dev/null || true
 set -uo pipefail
 
-AQUA="${AQUA_ROOT:-$HOME/AquaProjects}"
-APPIUM_PY="${APPIUM_PY:-$AQUA/MCP_Appium_Server/python}"
-REPORT_HTML="$APPIUM_PY/reports/KS-SIGNUP-AND-001_signup_login.html"
+APPIUM_PY="${APPIUM_PY:-$HOME/AquaProjects/MCP_Appium_Server/python}"
 PKG="${ANDROID_UAT_PACKAGE:-com.kskinfacial.customer.uat}"
-
-echo "KSKIN_MOBILE_RUNNER_VENV=android-signup"
-
-# Resolve a Python >=3.9, then use/create Appium project venv (avoids Homebrew PEP668).
-BASE_PY=""
-for c in \
-  /usr/local/bin/python3 \
-  /usr/local/bin/python3.12 \
-  /Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12 \
-  /Library/Frameworks/Python.framework/Versions/3.11/bin/python3.11 \
-  /opt/homebrew/bin/python3.12 \
-  /opt/homebrew/bin/python3
-do
-  [[ -x "$c" ]] || continue
-  if "$c" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)' 2>/dev/null; then
-    BASE_PY="$c"
-    break
-  fi
-done
-if [[ -z "$BASE_PY" ]]; then
-  echo "ERROR: Need Python >= 3.9"
-  read -r -p "Press Enter…" _; exit 1
-fi
-
-VENV_DIR="$APPIUM_PY/.venv"
-PYTHON_BIN="$VENV_DIR/bin/python"
-if [[ ! -x "$PYTHON_BIN" ]]; then
-  echo "Creating Appium venv at $VENV_DIR (base=$BASE_PY)..."
-  "$BASE_PY" -m venv "$VENV_DIR" || {
-    echo "ERROR: venv create failed with $BASE_PY"
-    read -r -p "Press Enter…" _; exit 1
-  }
-fi
-# Never pip-install into Homebrew/system Python — only into this venv.
-case "$PYTHON_BIN" in
-  */.venv/bin/python*) ;;
-  *)
-    echo "ERROR: refusing non-venv python: $PYTHON_BIN"
-    read -r -p "Press Enter…" _; exit 1
-    ;;
-esac
-export PATH="$VENV_DIR/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"
-export PYTHONPATH="$APPIUM_PY${PYTHONPATH:+:$PYTHONPATH}"
-export PYTHONUNBUFFERED=1
-export JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home 2>/dev/null || true)}"
-
-echo "Using Python: $PYTHON_BIN ($("$PYTHON_BIN" -V 2>&1))"
-if ! "$PYTHON_BIN" -c 'import pytest, appium' 2>/dev/null; then
-  echo "Installing pytest + Appium-Python-Client into venv..."
-  "$PYTHON_BIN" -m pip install -U pip setuptools wheel
-  "$PYTHON_BIN" -m pip install -U pytest Appium-Python-Client selenium || {
-    echo "ERROR: pip install failed in venv ($PYTHON_BIN)"
-    read -r -p "Press Enter…" _; exit 1
-  }
-fi
-cd "$APPIUM_PY" || { echo "ERROR: missing $APPIUM_PY"; read -r -p "Press Enter…" _; exit 1; }
+REPORT="$APPIUM_PY/reports/KS-SIGNUP-AND-001_signup_login.html"
+TEST="tests/test_signup_login_android.py"
 
 echo "========================================"
 echo "  Kskin Android — Sign-Up + Login"
-echo "  Dir: $APPIUM_PY"
-echo "  Python: $PYTHON_BIN"
+echo "  $APPIUM_PY"
 echo "  Started: $(date)"
 echo "========================================"
 
-# [1/5] Appium
-echo "[1/5] Starting Appium in background (if needed)..."
-if curl -s "http://127.0.0.1:4723/status" >/dev/null 2>&1; then
-  echo "  Appium already running on :4723"
-else
+[[ -d "$APPIUM_PY" ]] || { echo "ERROR: missing $APPIUM_PY"; read -r -p "Press Enter…" _; exit 1; }
+
+# Python >=3.9 + project venv (do not pip into Homebrew)
+BASE_PY=""
+for c in /usr/local/bin/python3 /opt/homebrew/bin/python3.12 /opt/homebrew/bin/python3; do
+  [[ -x "$c" ]] || continue
+  "$c" -c 'import sys; raise SystemExit(0 if sys.version_info>=(3,9) else 1)' 2>/dev/null && BASE_PY="$c" && break
+done
+[[ -n "$BASE_PY" ]] || { echo "ERROR: need Python >= 3.9"; read -r -p "Press Enter…" _; exit 1; }
+VENV="$APPIUM_PY/.venv"
+PY="$VENV/bin/python"
+[[ -x "$PY" ]] || "$BASE_PY" -m venv "$VENV" || { echo "ERROR: venv failed"; read -r -p "Press Enter…" _; exit 1; }
+export PATH="$VENV/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"
+export PYTHONPATH="$APPIUM_PY"
+export PYTHONUNBUFFERED=1
+"$PY" -c 'import pytest,appium' 2>/dev/null || "$PY" -m pip install -U pytest Appium-Python-Client selenium
+echo "Python: $PY ($("$PY" -V))"
+
+cd "$APPIUM_PY" || exit 1
+mkdir -p reports
+
+echo "[1/4] Appium..."
+if ! curl -s http://127.0.0.1:4723/status >/dev/null 2>&1; then
   if command -v appium >/dev/null 2>&1; then
-    nohup appium --port 4723 >"$APPIUM_PY/reports/appium_android_signup.log" 2>&1 &
-    echo "  Appium PID $!"
-    for i in 1 2 3 4 5 6 7 8 9 10; do
-      curl -s "http://127.0.0.1:4723/status" >/dev/null 2>&1 && break
-      sleep 1
-    done
+    nohup appium --port 4723 >reports/appium_android_signup.log 2>&1 &
+    for _ in $(seq 1 15); do curl -s http://127.0.0.1:4723/status >/dev/null 2>&1 && break; sleep 1; done
   else
-    echo "  WARNING: appium CLI not found — assuming already managed elsewhere"
+    echo "  WARNING: appium not in PATH"
   fi
 fi
 
-# [2/5] Device
-echo "[2/5] Checking Android device/emulator..."
-if ! command -v adb >/dev/null 2>&1; then
-  echo "ERROR: adb not found"; read -r -p "Press Enter…" _; exit 1
-fi
+echo "[2/4] Device..."
+command -v adb >/dev/null || { echo "ERROR: adb not found"; read -r -p "Press Enter…" _; exit 1; }
 adb start-server >/dev/null 2>&1 || true
-DEVICES="$(adb devices | awk 'NR>1 && $2=="device" {print $1}')"
-if [[ -z "$DEVICES" ]]; then
-  echo "ERROR: no Android device/emulator connected (adb devices empty)"
-  read -r -p "Press Enter…" _; exit 1
-fi
-echo "  Connected: $DEVICES"
+DEV="$(adb devices | awk 'NR>1 && $2=="device"{print $1}')"
+[[ -n "$DEV" ]] || { echo "ERROR: no Android device"; read -r -p "Press Enter…" _; exit 1; }
+echo "  $DEV"
 
-# [3/5] Clean install baseline
-echo "[3/5] Uninstalling $PKG for a clean-install baseline (ok if not installed)..."
-adb uninstall "$PKG" >/dev/null 2>&1 || echo "  (already clean / not installed)"
+echo "[3/4] Clean install baseline..."
+adb uninstall "$PKG" >/dev/null 2>&1 || true
 
-if [[ ! -f "$APPIUM_PY/helpers/dynamic_data.py" ]]; then
-  echo "WARNING: helpers/dynamic_data.py missing — writing stub now..."
-  mkdir -p "$APPIUM_PY/helpers"
-  cat > "$APPIUM_PY/helpers/dynamic_data.py" <<'PY'
-from __future__ import annotations
-import random, time
-from types import SimpleNamespace
-
-def _stamp():
-    return time.strftime("%y%m%d%H%M%S") + f"{random.randint(10,99)}"
-
-def _bag(platform: str) -> SimpleNamespace:
-    s = _stamp()
-    mobile = "9" + "".join(str(random.randint(0,9)) for _ in range(7))
-    return SimpleNamespace(
-        email=f"qa.{platform}.{s}@yopmail.com",
-        password="P@ssw0rd",
-        first_name="QA",
-        last_name=f"{platform.title()}{s[-4:]}",
-        full_name=f"QA {platform.title()}{s[-4:]}",
-        name=f"QA {platform.title()}{s[-4:]}",
-        mobile=mobile, phone=mobile, mobile_number=mobile,
-        otp="111111", gender="Female",
-        dob="01/01/1995", date_of_birth="01/01/1995",
-        platform=platform, run_id=s,
-    )
-
-def next_android_run_values():
-    return _bag("android")
-
-def next_ios_run_values():
-    return _bag("ios")
-PY
-fi
-
-# [4/5] Pytest
-echo "[4/5] Running SIGN-UP + LOGIN via pytest..."
-mkdir -p "$APPIUM_PY/reports"
+echo "[4/4] pytest $TEST"
 set +e
-"$PYTHON_BIN" -m pytest -s -vv \
-  "tests/test_signup_login_android.py" \
-  --tb=short
+"$PY" -m pytest -s -vv "$TEST" --tb=short
 ST=$?
 set -e
 
-# [5/5] Report
-echo "[5/5] Opening report (if present)..."
-# Prefer canonical name; else newest matching
-if [[ ! -f "$REPORT_HTML" ]]; then
-  NEWEST="$(ls -t "$APPIUM_PY"/reports/*SIGNUP*AND*.html "$APPIUM_PY"/reports/*signup*android*.html 2>/dev/null | head -1 || true)"
-  [[ -n "$NEWEST" ]] && REPORT_HTML="$NEWEST"
-fi
-if [[ -f "$REPORT_HTML" ]]; then
-  echo "  REPORT: $REPORT_HTML"
-  if [[ -d "/Applications/Google Chrome.app" ]]; then
-    open -a "Google Chrome" "$REPORT_HTML" || open "$REPORT_HTML" || true
-  else
-    open "$REPORT_HTML" || true
-  fi
+[[ -f "$REPORT" ]] || REPORT="$(ls -t reports/*SIGNUP*AND*.html reports/*signup*android*.html 2>/dev/null | head -1 || true)"
+if [[ -n "${REPORT:-}" && -f "$REPORT" ]]; then
+  echo "Report → Chrome: $REPORT"
+  open -a "Google Chrome" "$REPORT" 2>/dev/null || open "$REPORT" || true
 else
-  echo "  No HTML report found under $APPIUM_PY/reports"
+  echo "No HTML report found"
 fi
-
-if [[ "$ST" -eq 0 ]]; then
-  echo "RESULT: PASS (exit code 0)"
-else
-  echo "RESULT: FAIL (exit code $ST)"
-fi
-echo "Finished: $(date)"
-read -r -n 1 -s -p "Press any key to close this window..."
+echo "Finished: $(date)  exit=$ST"
+read -r -n 1 -s -p "Press any key to close..."
 echo
 exit "$ST"
