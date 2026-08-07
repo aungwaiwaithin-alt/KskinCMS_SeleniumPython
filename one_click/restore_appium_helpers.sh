@@ -14,7 +14,7 @@ echo "Appium  : $APPIUM"
 echo "Helpers : $HELPERS"
 
 if [[ -f "$HELPERS/dynamic_data.py" ]]; then
-  echo "OK: dynamic_data.py already present — nothing to restore."
+  echo "OK: dynamic_data.py already present - nothing to restore."
   ls "$HELPERS" | head
   exit 0
 fi
@@ -27,14 +27,14 @@ ls -la "$HELPERS" 2>/dev/null || echo "  (no helpers dir)"
 if [[ -d "$HELPERS" ]]; then
   mkdir -p "$BACKUP_DIR"
   cp -R "$HELPERS" "$BACKUP_DIR/helpers"
-  echo "Backed up current helpers → $BACKUP_DIR/helpers"
+  echo "Backed up current helpers -> $BACKUP_DIR/helpers"
 fi
 
 restore_from_zip() {
   local z="$1"
   local tmp
   tmp="$(mktemp -d)"
-  echo "Extracting helpers from $z …”
+  echo "Extracting helpers from $z ..."
   unzip -q -o "$z" -d "$tmp"
   # Find a helpers dir that contains dynamic_data.py
   local found
@@ -50,7 +50,7 @@ restore_from_zip() {
   rm -rf "$HELPERS"
   cp -R "$src" "$HELPERS"
   rm -rf "$tmp"
-  echo "Restored helpers from zip → $HELPERS"
+  echo "Restored helpers from zip -> $HELPERS"
   return 0
 }
 
