@@ -75,12 +75,12 @@ cp -f "$CMS"/one_click/run-android-*.command "$DEST/" 2>/dev/null || true
 cp -f "$CMS"/one_click/run-e2e-*.command "$DEST/" 2>/dev/null || true
 cp -f "$CMS"/one_click/mobile_lib.sh "$DEST/" 2>/dev/null || true
 
-# Pace file optional; remove helpers shadow that broke pytest (helpers.dynamic_data)
-cp -f "$CMS/one_click/pace_startup.py" "$DEST/pace_startup.py" 2>/dev/null || true
+# Thin mobile wrappers (keep *.legacy intact). Remove broken shims/shadow helpers.
 rm -rf "$DEST/python_path_first"
 rm -rf "$DEST/.one_click_bin" 2>/dev/null || true
+cp -f "$CMS/one_click/pace_startup.py" "$DEST/pace_startup.py" 2>/dev/null || true
+cp -f "$CMS/one_click/restore_appium_helpers.sh" "$DEST/restore_appium_helpers.sh" 2>/dev/null || true
 
-# Refresh mobile wrappers from template (keep *.legacy intact)
 for name in "${MOBILE_NAMES[@]}"; do
   cp -f "$CMS/one_click/run-mobile-legacy-wrapper.command.template" "$DEST/$name"
   chmod +x "$DEST/$name"
@@ -89,8 +89,15 @@ done
 cp -f "$CMS/one_click/run-mobile-legacy-wrapper.command.template" \
   "$DEST/run-mobile-legacy-wrapper.command.template" 2>/dev/null || true
 
-chmod +x "$DEST"/*.command "$CMS"/scripts/one_click_lib.sh \
-  "$CMS"/*/run_*_report.bash 2>/dev/null || true
+chmod +x "$DEST"/*.command "$DEST"/*.sh 2>/dev/null || true
+chmod +x "$CMS"/scripts/one_click_lib.sh "$CMS"/one_click/*.sh 2>/dev/null || true
+chmod +x "$CMS"/*/run_*_report.bash 2>/dev/null || true
+
+# If Appium helpers lost dynamic_data, try restore from zip now
+if [[ ! -f "$AQUA/MCP_Appium_Server/python/helpers/dynamic_data.py" ]]; then
+  echo "NOTE: helpers.dynamic_data.py missing — attempting restore from zip…"
+  bash "$CMS/one_click/restore_appium_helpers.sh" || true
+fi
 
 # Make sure report bash scripts are executable in repo
 find "$CMS" -name 'run_*_report.bash' -exec chmod +x {} \;
