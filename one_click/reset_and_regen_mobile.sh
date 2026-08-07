@@ -64,11 +64,37 @@ fi
 # Remove ONLY our known junk helpers (safe)
 rm -f "$APPIUM_PY/helpers/android_type.py" \
       "$APPIUM_PY/helpers/patch_email_runtime.py" 2>/dev/null || true
-# Remove auto-generated permissions stub if it still says Auto-generated compat
+# Do NOT delete permissions_android_page.py after git checkout — the suite imports it.
+# Only remove if it is clearly our stub AND git has a real copy to restore.
 if [[ -f "$APPIUM_PY/pages/permissions_android_page.py" ]] && \
    grep -q "Auto-generated compat page object" "$APPIUM_PY/pages/permissions_android_page.py" 2>/dev/null; then
-  echo "Removing auto-generated permissions_android_page.py stub..."
-  rm -f "$APPIUM_PY/pages/permissions_android_page.py"
+  echo "Found auto-generated permissions stub — trying git restore..."
+  if [[ -d "$APPIUM/.git" ]]; then
+    cd "$APPIUM"
+    if git cat-file -e 8f544632f1b717687dd5be6df13df353ca0827b8:python/pages/permissions_android_page.py 2>/dev/null; then
+      git checkout 8f544632f1b717687dd5be6df13df353ca0827b8 -- python/pages/permissions_android_page.py
+      echo "Restored permissions_android_page.py from 8f544632"
+    else
+      echo "WARNING: permissions_android_page.py not in 8f544632 — leaving stub (suite needs this import)."
+    fi
+  fi
+fi
+# If completely missing, restore from git
+if [[ ! -f "$APPIUM_PY/pages/permissions_android_page.py" ]] && [[ -d "$APPIUM/.git" ]]; then
+  cd "$APPIUM"
+  echo "permissions_android_page.py missing — searching git..."
+  if git cat-file -e 8f544632f1b717687dd5be6df13df353ca0827b8:python/pages/permissions_android_page.py 2>/dev/null; then
+    git checkout 8f544632f1b717687dd5be6df13df353ca0827b8 -- python/pages/permissions_android_page.py
+    echo "Restored from 8f544632"
+  else
+    SHA="$(git log --all --format=%H -- python/pages/permissions_android_page.py | head -1 || true)"
+    if [[ -n "$SHA" ]]; then
+      git checkout "$SHA" -- python/pages/permissions_android_page.py
+      echo "Restored permissions_android_page.py from $SHA"
+    else
+      echo "ERROR: permissions_android_page.py not found in git history."
+    fi
+  fi
 fi
 
 # Strip KSKIN_EMAIL_TYPE_PATCH from conftest if still present
