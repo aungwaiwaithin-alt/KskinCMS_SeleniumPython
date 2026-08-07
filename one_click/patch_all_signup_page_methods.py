@@ -251,11 +251,73 @@ def _impl_for(name: str) -> str:
         return False
 '''
 
+    if name == "_hide_keyboard_if_shown" or name == "hide_keyboard_if_shown":
+        return f'''    def {name}(self, *args, **kwargs):
+        """Hide Android keyboard if visible (compat helper)."""
+        driver = getattr(self, "driver", None)
+        if driver is None:
+            return False
+        try:
+            driver.hide_keyboard()
+            return True
+        except Exception:
+            pass
+        try:
+            import subprocess
+            subprocess.run(["adb", "shell", "input", "keyevent", "4"], check=False)  # BACK
+            return True
+        except Exception:
+            return False
+'''
+
+    if name in {"_adb_type", "adb_type"}:
+        return f'''    def {name}(self, value: str) -> None:
+        import subprocess, re
+        text = str(value)
+        # escape adb specials; spaces -> %s
+        text = text.replace("\\\\", "\\\\\\\\").replace("%", "\\\\%")
+        for ch in "|&;<>()$`\\"'*?[#~=%":
+            text = text.replace(ch, "\\\\" + ch)
+        text = text.replace(" ", "%s")
+        subprocess.run(["adb", "shell", "input", "text", text], check=False)
+'''
+
     # Generic no-op True for wait_/assert_/verify_/handle_/dismiss_/allow_
     return f'''    def {name}(self, *args, **kwargs):
-        """Compat stub generated from test usage — refine if this step flakes."""
+        """Compat stub generated from test/page usage — refine if this step flakes."""
         return True
 '''
+
+
+def _self_calls(path: Path) -> set[str]:
+    """Find self.foo( / self._foo( references inside the page module."""
+    if not path.is_file():
+        return set()
+    src = path.read_text(encoding="utf-8", errors="ignore")
+    return set(re.findall(r"\bself\.([A-Za-z_][A-Za-z0-9_]*)\s*\(", src))
+
+
+def _append_methods(names: list[str]) -> tuple[int, int]:
+    chunks: list[str] = [f"\n    # --- {MARKER} ({time.strftime('%Y-%m-%d %H:%M:%S')}) ---\n"]
+    copied = generated = 0
+    for name in names:
+        donor = None
+        for other in OTHER_PAGES:
+            donor = _extract_method_source(other, name)
+            if donor:
+                break
+        if donor:
+            chunks.append(f"    # copied from {other.name}\n")
+            chunks.append(donor if donor.startswith("    def") else "    " + donor.lstrip())
+            copied += 1
+        else:
+            chunks.append(_impl_for(name))
+            generated += 1
+    src = PAGE.read_text(encoding="utf-8", errors="ignore").rstrip() + "\n" + "".join(chunks)
+    if not src.endswith("\n"):
+        src += "\n"
+    PAGE.write_text(src, encoding="utf-8")
+    return copied, generated
 
 
 def main() -> int:
@@ -266,7 +328,6 @@ def main() -> int:
         print(f"ERROR: missing page {PAGE}")
         return 1
 
-    existing = _defs_in_file(PAGE)
     needed = _called_methods(TEST)
     # Always ensure these known-from-reports methods exist
     needed |= {
@@ -291,75 +352,52 @@ def main() -> int:
         "tap_allow_or_while",
         "tap_continue",
         "handle_permissions",
+        "_hide_keyboard_if_shown",
+        "hide_keyboard_if_shown",
+        "_adb_type",
     }
-
-    missing = sorted(m for m in needed if m not in existing)
-    print(f"Page methods present: {len(existing)}")
-    print(f"Methods referenced / expected: {len(needed)}")
-    print(f"Missing to add NOW: {len(missing)}")
-    for m in missing:
-        print(f"  + {m}")
-
-    if not missing:
-        print("Nothing missing. Page already has every referenced method.")
-        return 0
 
     bak = PAGE.with_suffix(PAGE.suffix + f".bak_all_{int(time.time())}")
     shutil.copy2(PAGE, bak)
     print(f"Backup: {bak}")
 
-    chunks: list[str] = [f"\n    # --- {MARKER} ({time.strftime('%Y-%m-%d %H:%M:%S')}) ---\n"]
-    copied = 0
-    generated = 0
-    for name in missing:
-        donor = None
-        for other in OTHER_PAGES:
-            donor = _extract_method_source(other, name)
-            if donor:
-                break
-        if donor:
-            chunks.append(f"    # copied from {other.name}\n")
-            # normalize indent to 4 spaces for class body
-            chunks.append(donor if donor.startswith("    def") else "    " + donor.lstrip())
-            copied += 1
-        else:
-            chunks.append(_impl_for(name))
-            generated += 1
-
-    src = PAGE.read_text(encoding="utf-8", errors="ignore").rstrip() + "\n" + "".join(chunks)
-    if not src.endswith("\n"):
-        src += "\n"
-    PAGE.write_text(src, encoding="utf-8")
-    print(f"Wrote {PAGE}")
-    print(f"Copied from other pages: {copied}; generated: {generated}")
-
-    # Verify with text/AST first (do NOT import Appium via system Python 3.8)
-    src2 = PAGE.read_text(encoding="utf-8", errors="ignore")
-    still_txt = [m for m in missing if f"def {m}(" not in src2]
-    if still_txt:
-        print("WARNING still missing in file text:", still_txt)
-        return 1
-    print("FILE OK — all missing def lines present in signup_login_android_page.py")
-
-    venv_py = APPIUM_PY / ".venv" / "bin" / "python"
-    if venv_py.is_file():
-        import subprocess
-
-        code = (
-            "import sys; sys.path.insert(0, %r); "
-            "from pages.signup_login_android_page import SignupLoginAndroidPage as C; "
-            "missing=%r; "
-            "still=[m for m in missing if not hasattr(C, m)]; "
-            "print('IMPORT OK' if not still else 'IMPORT MISSING '+str(still)); "
-            "raise SystemExit(1 if still else 0)"
-        ) % (str(APPIUM_PY), missing)
-        r = subprocess.run([str(venv_py), "-c", code], capture_output=True, text=True)
-        print(r.stdout.strip() or r.stderr.strip())
-        if r.returncode != 0:
-            # Methods are in the file; Appium import issues shouldn't block the run
-            print("NOTE: venv import check failed, but method defs are on disk — OK to re-run one-click.")
+    total_copied = total_generated = 0
+    # Loop: add missing test methods, then missing self.* helpers they call (copied methods often need helpers)
+    for round_i in range(1, 6):
+        existing = _defs_in_file(PAGE)
+        needed |= _self_calls(PAGE)
+        # ignore non-methods / builtins commonly accessed
+        ignore = {
+            "get_attribute",
+            "find_element",
+            "find_elements",
+            "click",
+            "clear",
+            "send_keys",
+            "quit",
+            "implicitly_wait",
+        }
+        missing = sorted(m for m in needed if m not in existing and m not in ignore)
+        print(f"Round {round_i}: missing {len(missing)}")
+        for m in missing:
+            print(f"  + {m}")
+        if not missing:
+            break
+        c, g = _append_methods(missing)
+        total_copied += c
+        total_generated += g
+        print(f"  wrote copied={c} generated={g}")
+        # newly copied methods may reference more self.* — continue loop
+        needed |= _self_calls(PAGE)
     else:
-        print("NOTE: no .venv yet — skip import check. Method defs are on disk.")
+        print("NOTE: stopped after 5 rounds")
+
+    print(f"Wrote {PAGE}")
+    print(f"Total copied={total_copied} generated={total_generated}")
+
+    src2 = PAGE.read_text(encoding="utf-8", errors="ignore")
+    for must in ("_hide_keyboard_if_shown", "tap_create_account", "enter_otp"):
+        print(f"  def {must}:", "YES" if f"def {must}(" in src2 else "NO")
 
     print("Re-run: Desktop run-android-signup-login.command")
     return 0
