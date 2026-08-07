@@ -56,16 +56,24 @@ for name in "${NAMES[@]}"; do
   echo "Installed $name ($(wc -c < "$DEST/$name") bytes)"
 done
 
+# Shared helpers + restore tools
+cp -f "$CMS/one_click/mobile_common.inc.sh" "$DEST/mobile_common.inc.sh"
+cp -f "$CMS/one_click/restore_appium_pages.sh" "$DEST/restore_appium_pages.sh" 2>/dev/null || true
+chmod +x "$DEST/restore_appium_pages.sh" 2>/dev/null || true
+
 # Also refresh CMS one-clicks if present
-if [[ -f "$CMS/one_click/install_one_click_commands.sh" ]]; then
-  # Copy CMS commands only (skip mobile wrapper section by copying cms files)
-  cp -f "$CMS"/one_click/run-kskin-cms-*.command "$DEST/" 2>/dev/null || true
-  chmod +x "$DEST"/run-kskin-cms-*.command 2>/dev/null || true
-fi
+cp -f "$CMS"/one_click/run-kskin-cms-*.command "$DEST/" 2>/dev/null || true
+chmod +x "$DEST"/run-kskin-cms-*.command 2>/dev/null || true
 
 echo ""
 echo "OK. Double-click any of:"
 printf '  %s\n' "${NAMES[@]}"
 echo ""
-echo "First line of full regression should say: Claude-style, self-contained"
-head -2 "$DEST/run-android-full-regression.command"
+echo "Signup must contain: NOT opening any old HTML report"
+grep -n 'NOT opening any old HTML report\|open_fresh_report_only' "$DEST/run-android-signup-login.command" | head -5
+echo ""
+# Quick pages check
+if [[ ! -f "$AQUA/MCP_Appium_Server/python/pages/permissions_android_page.py" ]]; then
+  echo "WARNING: pages/permissions_android_page.py MISSING — signup will fail collection."
+  echo "Run: bash $CMS/one_click/restore_appium_pages.sh"
+fi

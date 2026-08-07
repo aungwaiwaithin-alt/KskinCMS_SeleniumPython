@@ -3,11 +3,40 @@
 # Double-click from Finder. Uses Appium project .venv (Homebrew PEP668-safe).
 cd "$(dirname "$0")" 2>/dev/null || true
 set -uo pipefail
+START_EPOCH="$(date +%s)"
+SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 APPIUM_PY="${APPIUM_PY:-$HOME/AquaProjects/MCP_Appium_Server/python}"
 PKG="${ANDROID_UAT_PACKAGE:-com.kskinfacial.customer.uat}"
-REPORT="$APPIUM_PY/reports/KS-SIGNUP-AND-001_signup_login.html"
 TEST="tests/test_signup_login_android.py"
+
+# Load shared helpers if installed beside this .command
+if [[ -f "$SELF_DIR/mobile_common.inc.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "$SELF_DIR/mobile_common.inc.sh"
+elif [[ -f "$HOME/AquaProjects/KskinCMS/one_click/mobile_common.inc.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "$HOME/AquaProjects/KskinCMS/one_click/mobile_common.inc.sh"
+else
+  open_fresh_report_only() {
+    local start_epoch="$1"; shift
+    local best="" best_m=0 f m g
+    for g in "$@"; do
+      for f in $g; do
+        [[ -f "$f" ]] || continue
+        m="$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null || echo 0)"
+        if [[ "$m" -ge "$start_epoch" && "$m" -ge "$best_m" ]]; then best="$f"; best_m="$m"; fi
+      done
+    done
+    if [[ -n "$best" ]]; then
+      echo "Fresh report → Chrome: $best"
+      open -a "Google Chrome" "$best" 2>/dev/null || open "$best" || true
+      return 0
+    fi
+    echo "ERROR: No NEW HTML report from this run — not opening any old report."
+    return 1
+  }
+fi
 
 echo "========================================"
 echo "  Kskin Android — Sign-Up + Login"
@@ -17,7 +46,6 @@ echo "========================================"
 
 [[ -d "$APPIUM_PY" ]] || { echo "ERROR: missing $APPIUM_PY"; read -r -p "Press Enter…" _; exit 1; }
 
-# Python >=3.9 + project venv (do not pip into Homebrew)
 BASE_PY=""
 for c in /usr/local/bin/python3 /opt/homebrew/bin/python3.12 /opt/homebrew/bin/python3; do
   [[ -x "$c" ]] || continue
@@ -35,6 +63,20 @@ echo "Python: $PY ($("$PY" -V))"
 
 cd "$APPIUM_PY" || exit 1
 mkdir -p reports
+
+# Fail fast if page objects missing (this was why the old July report opened)
+if [[ ! -f pages/permissions_android_page.py ]]; then
+  echo "ERROR: missing pages/permissions_android_page.py — pytest cannot collect."
+  echo "pages/ listing:"
+  ls -la pages 2>/dev/null || echo "  (no pages/ directory)"
+  echo ""
+  echo "Fix: bash ~/AquaProjects/KskinCMS/one_click/restore_appium_pages.sh"
+  echo "Or restore MCP_Appium_Server/python/pages from backup/zip/Time Machine."
+  echo "NOT opening any old HTML report."
+  read -r -n 1 -s -p "Press any key to close..."
+  echo
+  exit 2
+fi
 
 echo "[1/4] Appium..."
 if ! curl -s http://127.0.0.1:4723/status >/dev/null 2>&1; then
@@ -62,12 +104,13 @@ set +e
 ST=$?
 set -e
 
-[[ -f "$REPORT" ]] || REPORT="$(ls -t reports/*SIGNUP*AND*.html reports/*signup*android*.html 2>/dev/null | head -1 || true)"
-if [[ -n "${REPORT:-}" && -f "$REPORT" ]]; then
-  echo "Report → Chrome: $REPORT"
-  open -a "Google Chrome" "$REPORT" 2>/dev/null || open "$REPORT" || true
-else
-  echo "No HTML report found"
+open_fresh_report_only "$START_EPOCH" \
+  "reports/*SIGNUP*AND*.html" \
+  "reports/*signup*android*.html" \
+  "reports/KS-SIGNUP-AND-001_signup_login.html" || true
+
+if [[ "$ST" -ne 0 ]]; then
+  echo "RESULT: FAIL / collection error (exit $ST) — ignore any old report still open in Chrome."
 fi
 echo "Finished: $(date)  exit=$ST"
 read -r -n 1 -s -p "Press any key to close..."

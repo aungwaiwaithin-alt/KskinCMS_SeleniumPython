@@ -3,6 +3,36 @@
 cd "$(dirname "$0")" 2>/dev/null || true
 set -uo pipefail
 
+START_EPOCH="$(date +%s)"
+SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [[ -f "$SELF_DIR/mobile_common.inc.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "$SELF_DIR/mobile_common.inc.sh"
+elif [[ -f "$HOME/AquaProjects/KskinCMS/one_click/mobile_common.inc.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "$HOME/AquaProjects/KskinCMS/one_click/mobile_common.inc.sh"
+else
+  open_fresh_report_only() {
+    local start_epoch="$1"; shift
+    local best="" best_m=0 f m g
+    for g in "$@"; do
+      for f in $g; do
+        [[ -f "$f" ]] || continue
+        m="$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null || echo 0)"
+        if [[ "$m" -ge "$start_epoch" && "$m" -ge "$best_m" ]]; then best="$f"; best_m="$m"; fi
+      done
+    done
+    if [[ -n "$best" ]]; then
+      echo "Fresh report → Chrome: $best"
+      open -a "Google Chrome" "$best" 2>/dev/null || open "$best" || true
+      return 0
+    fi
+    echo "ERROR: No NEW HTML report from this run — not opening any old report."
+    return 1
+  }
+fi
+
+
 APPIUM_PY="${APPIUM_PY:-$HOME/AquaProjects/MCP_Appium_Server/python}"
 PKG="${ANDROID_UAT_PACKAGE:-com.kskinfacial.customer.uat}"
 REPORT="$APPIUM_PY/reports/KS-E2E-AND-001_full_flow.html"
@@ -80,12 +110,11 @@ else
 fi
 set -e
 
-[[ -f "$REPORT" ]] || REPORT="$(ls -t reports/*E2E*AND*.html reports/*e2e*android*.html reports/*.html 2>/dev/null | head -1 || true)"
-if [[ -n "${REPORT:-}" && -f "$REPORT" ]]; then
-  echo "Report → Chrome: $REPORT"
-  open -a "Google Chrome" "$REPORT" 2>/dev/null || open "$REPORT" || true
-else
-  echo "No HTML report found"
+open_fresh_report_only "$START_EPOCH" \
+  "reports/*E2E*AND*.html" \
+  "reports/*e2e*android*.html" || true
+if [[ "$ST" -ne 0 ]]; then
+  echo "RESULT: FAIL / collection error (exit $ST) — ignore any old report still open in Chrome."
 fi
 echo "Finished: $(date)  exit=$ST"
 read -r -n 1 -s -p "Press any key to close..."

@@ -33,6 +33,13 @@ if [[ -d "$APPIUM_PY" ]]; then
   fi
 fi
 
+# Try restore missing page objects
+if [[ ! -f "$APPIUM_PY/pages/permissions_android_page.py" ]]; then
+  echo "Attempting pages restore..."
+  bash "$CMS/one_click/restore_appium_pages.sh" || true
+fi
+
 echo ""
-echo "DONE. Double-click run-android-full-regression.command"
-echo "It should say 'Claude-style, self-contained' — not 'thin wrapper'."
+echo "DONE. Double-click run-android-signup-login.command"
+echo "- Will NOT open old HTML if pytest fails"
+echo "- Needs pages/permissions_android_page.py under MCP_Appium_Server/python/pages/"
