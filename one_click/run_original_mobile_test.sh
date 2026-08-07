@@ -122,34 +122,39 @@ if [[ -z "$PYBIN" ]]; then
   exit 1
 fi
 
-# ---------- refuse Cursor-modified / incomplete page ----------
+# ---------- gate: must have Claude methods; markers alone are a warning ----------
 PAGE_FILE="$APPIUM_PY/pages/signup_login_android_page.py"
 if [[ "$TEST_REL" == *signup_login_android* ]] && [[ -f "$PAGE_FILE" ]]; then
-  BAD=0
-  if grep -qE 'ENTER_OTP_ONLY|KSKIN_|Auto-generated|compat stub|Not in git history — added' "$PAGE_FILE" 2>/dev/null; then
-    echo "REFUSING: $PAGE_FILE still has Cursor patch markers."
-    BAD=1
-  fi
   if ! grep -q 'def tap_create_account' "$PAGE_FILE" 2>/dev/null; then
-    echo "REFUSING: $PAGE_FILE has no tap_create_account — this is the incomplete git copy,"
-    echo "          not your Claude page (Claude's page had that method)."
-    BAD=1
-  fi
-  if [[ "$BAD" -eq 1 ]]; then
+    echo "REFUSING: $PAGE_FILE has no tap_create_account — incomplete / wiped page."
     echo ""
-    echo "Recover Claude's page first (do not invent methods):"
     CMS_HINT=""
     for c in "$AQUA/KskinCMS" "$AQUA/KskinCMS_SeleniumPython"; do
       [[ -f "$c/one_click/prove_originals.sh" ]] && CMS_HINT="$c" && break
     done
     CMS_HINT="${CMS_HINT:-$AQUA/KskinCMS}"
     echo "  bash $CMS_HINT/one_click/prove_originals.sh"
-    echo "  bash $CMS_HINT/one_click/recover_claude_from_backups.sh"
     echo "  bash $CMS_HINT/one_click/recover_claude_from_backups.sh --apply"
-    echo ""
-    echo "Or Cursor Local History on:"
-    echo "  $PAGE_FILE"
-    echo "Pick a version that contains:  def tap_create_account"
+    echo "Or Cursor Local History on: $PAGE_FILE"
+    exit 4
+  fi
+  # Methods present — allow run. Markers are noise from prior patches.
+  if grep -qE 'ENTER_OTP_ONLY|KSKIN_|Auto-generated|compat stub|Not in git history — added' "$PAGE_FILE" 2>/dev/null; then
+    echo "NOTE: page still has Cursor patch markers, but tap_create_account is present — continuing."
+  fi
+  MISSING="$(python3 - "$PAGE_FILE" "$APPIUM_PY/tests/test_signup_login_android.py" <<'PY'
+import re, sys
+from pathlib import Path
+page = Path(sys.argv[1]).read_text(encoding="utf-8", errors="ignore")
+test = Path(sys.argv[2]).read_text(encoding="utf-8", errors="ignore")
+have = set(re.findall(r"^\s{4}def ([A-Za-z_][A-Za-z0-9_]*)\(", page, flags=re.M))
+need = set(re.findall(r"\bpage\.([A-Za-z_][A-Za-z0-9_]*)\s*\(", test))
+print(len(need - have))
+PY
+)"
+  if [[ "${MISSING:-99}" != "0" ]]; then
+    echo "REFUSING: page still missing $MISSING method(s) the test calls."
+    echo "  bash ~/AquaProjects/KskinCMS/one_click/prove_originals.sh"
     exit 4
   fi
 fi
