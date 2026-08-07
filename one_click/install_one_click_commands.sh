@@ -45,119 +45,53 @@ elif [[ ! -f "$AQUA/KskinCMS/scripts/one_click_lib.sh" ]]; then
   echo "NOTE: $AQUA/KskinCMS exists but missing one_click pack — update/pull that tree."
 fi
 
-# --- Backup working mobile .command files ONCE (never overwrite real originals with wrappers) ---
-MOBILE_NAMES=(
-  run-ios-signup-login.command
-  run-android-signup-login.command
-  run-ios-full-regression.command
-  run-android-full-regression.command
-  run-e2e-full-flow-ios.command
-  run-e2e-full-flow-android.command
-)
-
-is_our_wrapper() {
-  local f="$1"
-  [[ -f "$f" ]] || return 1
-  grep -q 'thin wrapper' "$f" 2>/dev/null && return 0
-  grep -q 'run-mobile-legacy-wrapper' "$f" 2>/dev/null && return 0
-  grep -q 'suppressed legacy open' "$f" 2>/dev/null && return 0
-  grep -q 'FRESH RUN' "$f" 2>/dev/null && return 0
-  return 1
-}
-
-for name in "${MOBILE_NAMES[@]}"; do
-  src="$DEST/$name"
-  # Prefer existing good backups; do not clobber them
-  if [[ -f "$DEST/.legacy/$name" ]] && ! is_our_wrapper "$DEST/.legacy/$name"; then
-    cp -f "$DEST/.legacy/$name" "$DEST/${name}.legacy"
-    echo "Kept good backup: .legacy/$name"
-    continue
-  fi
-  if [[ -f "$DEST/${name}.legacy" ]] && ! is_our_wrapper "$DEST/${name}.legacy"; then
-    mkdir -p "$DEST/.legacy"
-    cp -f "$DEST/${name}.legacy" "$DEST/.legacy/$name"
-    echo "Kept good backup: ${name}.legacy"
-    continue
-  fi
-  # First-time backup only if current file is a real runner (not our wrapper)
-  if [[ -f "$src" ]] && ! is_our_wrapper "$src"; then
-    mkdir -p "$DEST/.legacy"
-    cp -f "$src" "$DEST/.legacy/$name"
-    cp -f "$src" "$DEST/${name}.legacy"
-    echo "Backed up original runner → .legacy/$name"
-  else
-    echo "NOTE: no original backup yet for $name (wrapper-only or missing)"
-  fi
-done
-
-# --- Copy CMS + mobile commands from repo pack ---
+# --- CMS ONLY ---
+# This installer no longer touches mobile .command files or the Appium tree.
+# Mobile is handled separately, after the ORIGINAL Appium tests pass:
+#   bash one_click/purge_mobile_one_clicks.sh
+#   bash one_click/run_original_mobile_test.sh android-signup
 cp -f "$CMS"/one_click/run-kskin-cms-*.command "$DEST/"
-cp -f "$CMS"/one_click/run-ios-*.command "$DEST/" 2>/dev/null || true
-cp -f "$CMS"/one_click/run-android-*.command "$DEST/" 2>/dev/null || true
-cp -f "$CMS"/one_click/run-e2e-*.command "$DEST/" 2>/dev/null || true
-cp -f "$CMS"/one_click/mobile_lib.sh "$DEST/" 2>/dev/null || true
 
-# Thin mobile wrappers (keep *.legacy intact). Remove broken shims/shadow helpers.
-rm -rf "$DEST/python_path_first"
+# Remove shims that used to shadow python/open for mobile wrappers
+rm -rf "$DEST/python_path_first" 2>/dev/null || true
 rm -rf "$DEST/.one_click_bin" 2>/dev/null || true
-cp -f "$CMS/one_click/pace_startup.py" "$DEST/pace_startup.py" 2>/dev/null || true
-cp -f "$CMS/one_click/restore_appium_helpers.sh" "$DEST/restore_appium_helpers.sh" 2>/dev/null || true
 
-for name in "${MOBILE_NAMES[@]}"; do
-  cp -f "$CMS/one_click/run-mobile-legacy-wrapper.command.template" "$DEST/$name"
-  chmod +x "$DEST/$name"
-done
-
-cp -f "$CMS/one_click/run-mobile-legacy-wrapper.command.template" \
-  "$DEST/run-mobile-legacy-wrapper.command.template" 2>/dev/null || true
-
-chmod +x "$DEST"/*.command "$DEST"/*.sh 2>/dev/null || true
+chmod +x "$DEST"/run-kskin-cms-*.command 2>/dev/null || true
 chmod +x "$CMS"/scripts/one_click_lib.sh "$CMS"/one_click/*.sh 2>/dev/null || true
 chmod +x "$CMS"/*/run_*_report.bash 2>/dev/null || true
-
-# If Appium helpers lost dynamic_data OR still has long-email stub, restore Claude originals
-DD="$AQUA/MCP_Appium_Server/python/helpers/dynamic_data.py"
-if [[ ! -f "$DD" ]] || grep -qE 'Auto-generated|compat stub|strftime\("%y%m%d%H%M%S"\)' "$DD" 2>/dev/null; then
-  echo "NOTE: restoring Claude mobile originals (no long stub email)…"
-  bash "$CMS/one_click/restore_claude_mobile_originals.sh" || true
-fi
-# Do NOT copy generate_dynamic_data.py to Desktop as a "fix" — it overwrote originals before.
 
 # Make sure report bash scripts are executable in repo
 find "$CMS" -name 'run_*_report.bash' -exec chmod +x {} \;
 
 cat > "$DEST/README_ONE_CLICK.txt" <<EOF
-Kskin one-click runners (installed $(date))
+Kskin CMS one-click runners (installed $(date))
 
-What you get
-- CMS: paced visible steps → HTML report → opens in Google Chrome
-- Mobile: your previous working .command saved as *.legacy, wrapped with
-  pace shim (STEP_PAUSE_SEC=3) + Chrome open at the end
+CMS (this installer)
+- Paced visible steps → HTML report → opens automatically in Google Chrome
+- Files: run-kskin-cms-*.command
 
-Slower / faster
-  STEP_PAUSE_SEC=4 open run-ios-signup-login.command
-  (or export in Terminal before double-click via a tiny wrapper)
+Slower / faster pacing
+  STEP_PAUSE_SEC=4 bash run-kskin-cms-outlet.command
 
 Requirements
 - ~/AquaProjects/KskinCMS → this git repo (installer links if missing)
 - cms_config.py present in CMS repo
-- helpers.step_report available via MCP_Appium_Server/python
-- Mobile: Appium + device/simulator as before
 
-If CMS still fails to start
-  open Terminal and run:
+If CMS fails to start
   bash ~/AquaProjects/KskinCMS/Product_Module/run_product_report.bash
   and read the error (usually missing cms_config.py or wrong Python).
 
-If mobile most steps fail (but used to pass)
-  - Confirm correct app build / bundle id
-  - Device unlocked, Appium server running
-  - Re-run signup first (environment smoke)
-  - Check the HTML report failure screenshots
+MOBILE is NOT installed here
+Mobile one-clicks are generated only after the ORIGINAL Appium tests pass:
+  bash ~/AquaProjects/KskinCMS/one_click/purge_mobile_one_clicks.sh
+  bash ~/AquaProjects/KskinCMS/one_click/run_original_mobile_test.sh android-signup
 EOF
 
 echo ""
-echo "Installed one-click commands into:"
+echo "Installed CMS one-click commands into:"
 echo "  $DEST"
-echo "Open that folder in Finder and double-click a .command file."
+echo "Open that folder in Finder and double-click a run-kskin-cms-*.command file."
+echo ""
+echo "Mobile is intentionally untouched. Run originals first:"
+echo "  bash $CMS/one_click/run_original_mobile_test.sh android-signup"
 echo "Done."
