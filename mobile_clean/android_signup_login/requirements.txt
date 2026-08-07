@@ -1,0 +1,4 @@
+# Clean Android signup+login — Appium 2.x
+pytest>=8.0
+Appium-Python-Client>=4.0
+selenium>=4.15
