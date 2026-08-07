@@ -1,6 +1,6 @@
 #!/bin/bash
-# Mobile one-click = your original *.legacy, almost untouched.
-# We only suppress mid-run HTML open + open Chrome if a NEW report appears.
+# Mobile one-click = thin wrapper around your ORIGINAL runner.
+# Never treat another wrapper copy as the legacy script.
 set -uo pipefail
 cd "$(dirname "$0")" || exit 1
 
@@ -8,14 +8,15 @@ AQUA="${AQUA_ROOT:-$HOME/AquaProjects}"
 APPIUM_PY="${APPIUM_PY:-$AQUA/MCP_Appium_Server/python}"
 SELF_DIR="$(pwd)"
 BASE="$(basename "$0")"
+# If someone executes a *.command.legacy that is itself a wrapper, normalize name
+CORE_NAME="$BASE"
+CORE_NAME="${CORE_NAME%.legacy}"
 START_EPOCH="$(date +%s)"
 
 REAL_OPEN="$(command -v open || echo /usr/bin/open)"
 BIN_DIR="$SELF_DIR/.one_click_bin"
 mkdir -p "$BIN_DIR"
-# Always remove old broken shims
 rm -f "$BIN_DIR/python" "$BIN_DIR/python3" "$BIN_DIR/pytest" "$BIN_DIR/_kskin_py_shim.py" 2>/dev/null || true
-# Clear leftover shadow path vars from older installs
 unset KSKIN_PACE_FIRST KSKIN_PACE_STARTUP PYTHONSTARTUP
 if [[ -n "${PYTHONPATH:-}" ]]; then
   export PYTHONPATH="$(echo "$PYTHONPATH" | tr ':' '\n' | grep -v 'python_path_first' | grep -v '^$' | paste -sd: - || true)"
@@ -35,11 +36,39 @@ export PATH="$BIN_DIR:/Library/Frameworks/Python.framework/Versions/3.8/bin:/opt
 export PYTHONUNBUFFERED=1
 export STEP_PAUSE_SEC="${STEP_PAUSE_SEC:-3}"
 
-LEGACY="$SELF_DIR/${BASE}.legacy"
-[[ -f "$LEGACY" ]] || LEGACY="$SELF_DIR/.legacy/${BASE}"
+is_wrapper() {
+  local f="$1"
+  [[ -f "$f" ]] || return 1
+  # Our wrappers contain this marker; real Claude-era runners do not
+  grep -q 'thin wrapper' "$f" 2>/dev/null && return 0
+  grep -q 'run-mobile-legacy-wrapper' "$f" 2>/dev/null && return 0
+  grep -q 'suppressed legacy open' "$f" 2>/dev/null && return 0
+  grep -q 'FRESH RUN' "$f" 2>/dev/null && return 0
+  grep -q 'Missing legacy runner' "$f" 2>/dev/null && return 0
+  return 1
+}
+
+pick_legacy() {
+  local cand
+  for cand in \
+    "$SELF_DIR/${CORE_NAME}.legacy" \
+    "$SELF_DIR/.legacy/${CORE_NAME}" \
+    "$SELF_DIR/.legacy/${CORE_NAME}.legacy" \
+    "$SELF_DIR/_originals/${CORE_NAME}" \
+    "$SELF_DIR/_originals/${CORE_NAME}.legacy"
+  do
+    if [[ -f "$cand" ]] && ! is_wrapper "$cand"; then
+      echo "$cand"
+      return 0
+    fi
+  done
+  return 1
+}
+
+LEGACY="$(pick_legacy || true)"
 
 HINT="SIGNUP"
-case "$BASE" in
+case "$CORE_NAME" in
   *ios-signup*) HINT="KS-SIGNUP-iOS" ;;
   *android-signup*) HINT="KS-SIGNUP" ;;
   *ios-full*) HINT="KS-REGR-iOS" ;;
@@ -49,31 +78,37 @@ case "$BASE" in
 esac
 
 echo "=============================================================="
-echo "  $BASE  (thin wrapper → your original .legacy)"
-echo "  Legacy: $LEGACY"
+echo "  $CORE_NAME  (thin wrapper → original runner)"
+echo "  Legacy: ${LEGACY:-NOT FOUND}"
 echo "  Started: $(date)"
 echo "=============================================================="
 
-if [[ ! -f "$LEGACY" ]]; then
-  echo "ERROR: missing $LEGACY" >&2
+if [[ -z "${LEGACY:-}" ]]; then
+  echo "ERROR: Original runner backup not found (or only wrapper copies remain)." >&2
+  echo "Looked for non-wrapper files:" >&2
+  echo "  $SELF_DIR/${CORE_NAME}.legacy" >&2
+  echo "  $SELF_DIR/.legacy/${CORE_NAME}" >&2
+  echo "" >&2
+  echo "Recover NOW (Terminal):" >&2
+  echo "  ls -la \"$SELF_DIR/.legacy\"" >&2
+  echo "  ls -la \"$SELF_DIR\"/*.legacy 2>/dev/null" >&2
+  echo "" >&2
+  echo "If empty, restore from Time Machine or re-copy the old working" >&2
+  echo ".command that Claude used into:" >&2
+  echo "  $SELF_DIR/.legacy/$CORE_NAME" >&2
   read -r -p "Press Enter…" _; exit 1
 fi
 
-# Warn-only if helpers look incomplete (do NOT block — Claude-style just run)
 HELPERS="$APPIUM_PY/helpers"
-if [[ -d "$HELPERS" ]] && [[ ! -f "$HELPERS/dynamic_data.py" ]]; then
-  echo "WARNING: $HELPERS/dynamic_data.py is missing."
-  echo "         helpers currently has: $(ls "$HELPERS" | tr '\n' ' ')"
-  echo "         If pytest fails on helpers.dynamic_data, restore Appium helpers:"
-  echo "           bash \"\$HOME/AquaProjects/KskinCMS/one_click/restore_appium_helpers.sh\""
-  echo ""
+if [[ ! -f "$HELPERS/dynamic_data.py" ]]; then
+  echo "WARNING: $HELPERS/dynamic_data.py missing — signup may fail collection."
+  echo "Create it first (see Cursor chat), then re-run."
 fi
 
 REPORT_DIR="$APPIUM_PY/reports"
 mkdir -p "$REPORT_DIR"
 
 set +e
-# Same as double-clicking your old working file
 bash "$LEGACY"
 ST=$?
 set -e
@@ -104,7 +139,7 @@ if [[ -n "$NEW_REPORT" ]]; then
     "$REAL_OPEN" "$NEW_REPORT" || true
   fi
 else
-  echo "No new HTML report since start (suite may have failed before emit)."
+  echo "No new HTML report since start."
 fi
 
 echo "Finished: $(date)  (exit $ST)"

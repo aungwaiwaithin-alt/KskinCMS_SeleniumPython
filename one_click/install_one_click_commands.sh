@@ -45,7 +45,7 @@ elif [[ ! -f "$AQUA/KskinCMS/scripts/one_click_lib.sh" ]]; then
   echo "NOTE: $AQUA/KskinCMS exists but missing one_click pack — update/pull that tree."
 fi
 
-# --- Backup working mobile .command files, then install wrappers ---
+# --- Backup working mobile .command files ONCE (never overwrite real originals with wrappers) ---
 MOBILE_NAMES=(
   run-ios-signup-login.command
   run-android-signup-login.command
@@ -54,17 +54,39 @@ MOBILE_NAMES=(
   run-e2e-full-flow-ios.command
   run-e2e-full-flow-android.command
 )
+
+is_our_wrapper() {
+  local f="$1"
+  [[ -f "$f" ]] || return 1
+  grep -q 'thin wrapper' "$f" 2>/dev/null && return 0
+  grep -q 'run-mobile-legacy-wrapper' "$f" 2>/dev/null && return 0
+  grep -q 'suppressed legacy open' "$f" 2>/dev/null && return 0
+  grep -q 'FRESH RUN' "$f" 2>/dev/null && return 0
+  return 1
+}
+
 for name in "${MOBILE_NAMES[@]}"; do
   src="$DEST/$name"
-  if [[ -f "$src" ]]; then
-    # Only backup if not already our thin wrapper (legacy must stay the real runner)
-    if ! grep -q 'Missing legacy runner' "$src" 2>/dev/null; then
-      cp -f "$src" "$DEST/.legacy/$name"
-      cp -f "$src" "$DEST/${name}.legacy"
-      echo "Backed up mobile runner → .legacy/$name"
-    fi
-  elif [[ -f "$DEST/.legacy/$name" ]]; then
+  # Prefer existing good backups; do not clobber them
+  if [[ -f "$DEST/.legacy/$name" ]] && ! is_our_wrapper "$DEST/.legacy/$name"; then
     cp -f "$DEST/.legacy/$name" "$DEST/${name}.legacy"
+    echo "Kept good backup: .legacy/$name"
+    continue
+  fi
+  if [[ -f "$DEST/${name}.legacy" ]] && ! is_our_wrapper "$DEST/${name}.legacy"; then
+    mkdir -p "$DEST/.legacy"
+    cp -f "$DEST/${name}.legacy" "$DEST/.legacy/$name"
+    echo "Kept good backup: ${name}.legacy"
+    continue
+  fi
+  # First-time backup only if current file is a real runner (not our wrapper)
+  if [[ -f "$src" ]] && ! is_our_wrapper "$src"; then
+    mkdir -p "$DEST/.legacy"
+    cp -f "$src" "$DEST/.legacy/$name"
+    cp -f "$src" "$DEST/${name}.legacy"
+    echo "Backed up original runner → .legacy/$name"
+  else
+    echo "NOTE: no original backup yet for $name (wrapper-only or missing)"
   fi
 done
 
