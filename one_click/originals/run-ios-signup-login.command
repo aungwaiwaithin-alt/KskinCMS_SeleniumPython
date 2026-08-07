@@ -7,12 +7,20 @@ APPIUM_PY="${APPIUM_PY:-$AQUA/MCP_Appium_Server/python}"
 REPORT_HTML="$APPIUM_PY/reports/KS-SIGNUP-iOS-001_signup_login.html"
 BUNDLE="${IOS_UAT_BUNDLE:-enterprise.codigo.kskincustomer.uat}"
 
-export PATH="/Library/Frameworks/Python.framework/Versions/3.8/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+# Appium Python client uses PEP585 hints (tuple[...]) — needs Python >= 3.9.
+export PATH="/opt/homebrew/bin:/usr/local/bin:/Library/Frameworks/Python.framework/Versions/3.12/bin:/Library/Frameworks/Python.framework/Versions/3.11/bin:/Library/Frameworks/Python.framework/Versions/3.10/bin:$PATH"
 export PYTHONPATH="$APPIUM_PY${PYTHONPATH:+:$PYTHONPATH}"
 export PYTHONUNBUFFERED=1
 export JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home 2>/dev/null || true)}"
 
-PYTHON_BIN="$(command -v python3.8 || command -v python3)"
+PYTHON_BIN="$(command -v python3.12 || command -v python3.11 || command -v python3.10 || command -v python3.9 || command -v python3)"
+if "$PYTHON_BIN" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3,9) else 1)'; then
+  :
+else
+  echo "ERROR: Need Python >= 3.9 for current Appium client (found: $PYTHON_BIN)"
+  echo "Install/use python3.12, then re-run."
+  read -r -p "Press Enter…" _; exit 1
+fi
 cd "$APPIUM_PY" || { echo "ERROR: missing $APPIUM_PY"; read -r -p "Press Enter…" _; exit 1; }
 
 echo "========================================"
