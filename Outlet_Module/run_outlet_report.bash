@@ -44,4 +44,4 @@ raise SystemExit(run_paced_steps(r, cases, quit_driver, OUT))
 PY
 STATUS=$?
 one_click_finish "$STATUS"
-exit $?
+exit "$STATUS"

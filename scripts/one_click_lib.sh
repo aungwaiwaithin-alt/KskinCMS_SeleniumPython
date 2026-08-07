@@ -71,7 +71,10 @@ one_click_setup() {
     export CMS_REPORT_HTML="$REPORT_DIR/$report_arg"
   fi
   export REPORT_HTML="$CMS_REPORT_HTML"
+  unset ONE_CLICK_CHROME_OPENED
   cd "$AQUA" || return 1
+  # Safety net: always open HTML in Chrome if the shell exits early (e.g. set -e).
+  trap 'one_click_open_chrome "${CMS_REPORT_HTML:-${REPORT_HTML:-}}" || true' EXIT
   echo "=============================================================="
   echo "  $title"
   echo "  CMS_ROOT : $CMS_ROOT"
@@ -83,25 +86,32 @@ one_click_setup() {
 }
 
 one_click_open_chrome() {
-  local html="${1:-$CMS_REPORT_HTML}"
+  local html="${1:-${CMS_REPORT_HTML:-${REPORT_HTML:-}}}"
   if [[ -z "$html" || ! -f "$html" ]]; then
     echo "WARNING: Report HTML not found: ${html:-<empty>}" >&2
     return 1
   fi
+  # Idempotent — safe if finish + EXIT trap both call us
+  if [[ "${ONE_CLICK_CHROME_OPENED:-}" == "$html" ]]; then
+    return 0
+  fi
   echo ""
   echo "Opening report in Google Chrome:"
   echo "  $html"
-  # Prefer Chrome explicitly (user request)
+  # Prefer Chrome explicitly (user request). Quote path (reports dir may contain parentheses).
   if [[ -d "/Applications/Google Chrome.app" ]]; then
-    open -a "Google Chrome" "$html" || open "$html" || true
+    open -a "Google Chrome" "$html" 2>/dev/null || open "$html" 2>/dev/null || true
   else
-    open "$html" || true
+    open "$html" 2>/dev/null || true
   fi
+  export ONE_CLICK_CHROME_OPENED="$html"
 }
 
 one_click_finish() {
   local status="${1:-0}"
-  one_click_open_chrome "$CMS_REPORT_HTML" || true
+  # Clear EXIT trap so we don't double-run after an intentional finish
+  trap - EXIT 2>/dev/null || true
+  one_click_open_chrome "${CMS_REPORT_HTML:-${REPORT_HTML:-}}" || true
   echo ""
   echo "Finished: $(date)  (exit ${status})"
   echo "Tip: slower watch → STEP_PAUSE_SEC=4 double-click again"
@@ -109,14 +119,16 @@ one_click_finish() {
   if [[ -t 0 ]] || [[ "${ONE_CLICK_KEEP_OPEN:-1}" == "1" ]]; then
     read -r -p "Press Enter to close…" _ || true
   fi
-  return "$status"
+  # Always succeed from the caller's perspective so set -e cannot skip exit handling
+  return 0
 }
 
 one_click_run_python() {
-  # Runs python heredoc/file; does NOT abort before Chrome open on failure.
+  # Runs python heredoc/file. NEVER leave set -e on — a failed test must still
+  # reach one_click_finish so the HTML report opens in Google Chrome.
   set +e
   "$PYTHON_BIN" "$@"
   local st=$?
-  set -e
+  # Do not re-enable set -e here (that used to abort runners before Chrome open).
   return "$st"
 }
